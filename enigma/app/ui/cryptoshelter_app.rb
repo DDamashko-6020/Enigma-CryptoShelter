@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'tk'
 require 'tkextlib/tile'
 
@@ -11,8 +13,6 @@ module Enigma
       COLORS = Enigma::Theme::COLORS
       FONT = Enigma::Theme::FONT
 
-      VAULT_PATH = File.join(Dir.home, '.enigma_vault.dat').freeze
-
       def initialize
         @root = TkRoot.new
         @root.title 'ENIGMA CRYPTOSHELTER'
@@ -21,8 +21,6 @@ module Enigma
         @root.background COLORS[:bg]
 
         @current_tab = 'cipher_lab'
-
-        first_run_setup unless File.exist?(VAULT_PATH)
 
         build_top_nav
         build_content_area
@@ -36,9 +34,15 @@ module Enigma
       private
 
       def build_top_nav
-        nav = TkFrame.new(@root) { background COLORS[:bg]; highlightthickness 0 }
+        nav = TkFrame.new(@root) do
+          background COLORS[:bg]
+          highlightthickness 0
+        end
         nav.pack(side: :top, fill: :x)
-        TkFrame.new(@root) { background COLORS[:accent]; height 1 }.pack(side: :top, fill: :x)
+        TkFrame.new(@root) do
+          background COLORS[:accent]
+          height 1
+        end.pack(side: :top, fill: :x)
 
         left = TkFrame.new(nav) { background COLORS[:bg] }
         left.pack(side: :left, fill: :y, padx: [20, 0], pady: 10)
@@ -54,7 +58,7 @@ module Enigma
 
         @tab_buttons = {}
         @tab_underlines = {}
-        %w[Cipher\ Lab Vault File\ Lock].each do |tab_name|
+        ['Cipher Lab', 'Vault', 'File Lock'].each do |tab_name|
           key = tab_name.downcase.gsub(/\s+/, '_')
           f = TkFrame.new(center) { background COLORS[:bg] }
           f.pack(side: :left, padx: 15, pady: [8, 0])
@@ -103,8 +107,14 @@ module Enigma
       end
 
       def build_status_bar
-        TkFrame.new(@root) { background COLORS[:accent]; height 1 }.pack(side: :bottom, fill: :x)
-        bar = TkFrame.new(@root) { background COLORS[:bg]; height 30 }
+        TkFrame.new(@root) do
+          background COLORS[:accent]
+          height 1
+        end.pack(side: :bottom, fill: :x)
+        bar = TkFrame.new(@root) do
+          background COLORS[:bg]
+          height 30
+        end
         bar.pack(side: :bottom, fill: :x)
 
         left = TkFrame.new(bar) { background COLORS[:bg] }
@@ -138,119 +148,6 @@ module Enigma
           background COLORS[:bg]
           cursor 'hand2'
         end.pack(side: :left)
-      end
-
-      def first_run_setup
-        dialog = TkDialog.new(
-          'title' => 'Welcome to Enigma CryptoShelter',
-          'parent' => @root,
-          'buttons' => ['Create Vault', 'Exit']
-        )
-
-        body = TkFrame.new(dialog)
-        TkLabel.new(body) do
-          text '  CREATE YOUR MASTER PASSWORD'
-          font TkFont.new("#{FONT} 11 bold")
-          foreground COLORS[:accent]
-          background COLORS[:panel]
-        end.pack(anchor: 'w', padx: 20, pady: [16, 4])
-
-        TkLabel.new(body) do
-          text '  This password protects all your stored credentials.'
-          font TkFont.new("#{FONT} 9")
-          foreground COLORS[:text_secondary]
-          background COLORS[:panel]
-        end.pack(anchor: 'w', padx: 20)
-
-        TkLabel.new(body) do
-          text '  It cannot be recovered if lost.'
-          font TkFont.new("#{FONT} 9 bold")
-          foreground COLORS[:red]
-          background COLORS[:panel]
-        end.pack(anchor: 'w', padx: 20, pady: [0, 12])
-
-        TkLabel.new(body) do
-          text '  Master password:'
-          font TkFont.new("#{FONT} 10")
-          foreground COLORS[:text]
-          background COLORS[:panel]
-        end.pack(anchor: 'w', padx: 20)
-        pw = TkEntry.new(body) do
-          background COLORS[:input]
-          foreground COLORS[:text]
-          font TkFont.new("#{FONT} 12")
-          show '*'
-          relief 'flat'
-          highlightthickness 1
-          highlightcolor COLORS[:accent]
-          highlightbackground COLORS[:border_inactive]
-        end
-        pw.pack(fill: :x, padx: 20, ipady: 4)
-
-        TkLabel.new(body) do
-          text '  Confirm password:'
-          font TkFont.new("#{FONT} 10")
-          foreground COLORS[:text]
-          background COLORS[:panel]
-        end.pack(anchor: 'w', padx: 20, pady: [8, 0])
-        confirm = TkEntry.new(body) do
-          background COLORS[:input]
-          foreground COLORS[:text]
-          font TkFont.new("#{FONT} 12")
-          show '*'
-          relief 'flat'
-          highlightthickness 1
-          highlightcolor COLORS[:accent]
-          highlightbackground COLORS[:border_inactive]
-        end
-        confirm.pack(fill: :x, padx: 20, ipady: 4)
-
-        @first_run_error = TkLabel.new(body) do
-          text ''
-          font TkFont.new("#{FONT} 9")
-          foreground COLORS[:red]
-          background COLORS[:panel]
-        end
-        @first_run_error.pack(anchor: 'w', padx: 20, pady: [4, 0])
-
-        TkLabel.new(body) do
-          text "  Min 4 characters. Store it safely \u{2014} no recovery option."
-          font TkFont.new("#{FONT} 9")
-          foreground COLORS[:text_secondary]
-          background COLORS[:panel]
-        end.pack(anchor: 'w', padx: 20, pady: [8, 16])
-
-        dialog.child = body
-        body.pack(fill: :both, expand: true, padx: 0, pady: 0)
-        dialog.wait_destroy
-
-        if dialog.value == 0
-          p1 = pw.get
-          p2 = confirm.get
-          if p1.length < 4
-            Tk.messageBox('type' => 'ok', 'icon' => 'error',
-                           'title' => 'Error', 'message' => 'Password must be at least 4 characters.')
-            first_run_setup
-            return
-          end
-          if p1 != p2
-            Tk.messageBox('type' => 'ok', 'icon' => 'error',
-                           'title' => 'Error', 'message' => 'Passwords do not match.')
-            first_run_setup
-            return
-          end
-          create_vault(p1)
-        else
-          exit
-        end
-      end
-
-      def create_vault(password)
-        key_master = Enigma::Core::KeyMaster.instance
-        vault_key = key_master.vault_key(password)
-        cipher = Enigma::Core::Cipher::AesGcm.new(vault_key)
-        storage = Enigma::Core::Vault::Storage.new(VAULT_PATH, cipher)
-        storage.save([])
       end
 
       def switch_tab(key)

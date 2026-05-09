@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'tk'
 require 'tkextlib/tile'
 require 'digest'
@@ -28,10 +30,16 @@ module Enigma
         main = TkFrame.new(@frame) { background COLORS[:bg] }
         main.pack(fill: :both, expand: true)
 
-        left = TkFrame.new(main) { background COLORS[:panel]; width 320 }
+        left = TkFrame.new(main) do
+          background COLORS[:panel]
+          width 320
+        end
         left.pack(side: :left, fill: :y, anchor: 'nw')
         left.pack_propagate(false)
-        TkFrame.new(left) { background COLORS[:border_inactive]; width 1 }.pack(side: :right, fill: :y)
+        TkFrame.new(left) do
+          background COLORS[:border_inactive]
+          width 1
+        end.pack(side: :right, fill: :y)
 
         right = TkFrame.new(main) { background COLORS[:bg] }
         right.pack(side: :left, fill: :both, expand: true)
@@ -60,7 +68,7 @@ module Enigma
         algo_frame = TkFrame.new(parent) { background COLORS[:panel] }
         algo_frame.pack(pad.merge(fill: :x))
         @algorithm = Tk::Tile::Combobox.new(algo_frame) do
-          values ['AES-256-GCM', 'ChaCha20-Poly1305', 'XOR', "C\u00e9sar"]
+          values %w[AES-256-GCM ChaCha20-Poly1305 XOR César]
           state 'readonly'
           width 30
         end
@@ -241,6 +249,7 @@ module Enigma
       def copy_ciphertext
         text = @cipher_text.get('1.0', 'end-1c')
         return if text.empty?
+
         TkClipboard.clear
         TkClipboard.add text
       end
@@ -258,7 +267,7 @@ module Enigma
         encrypted = cipher.encrypt(plain)
         hex = encrypted.unpack1('H*')
         set_ciphertext(hex)
-      rescue => e
+      rescue StandardError => e
         set_ciphertext("ERROR: #{e.message}")
       end
 
@@ -277,7 +286,7 @@ module Enigma
         @plain_text.delete('1.0', 'end')
         @plain_text.insert('1.0', decrypted)
         update_char_count
-      rescue => e
+      rescue StandardError => e
         set_ciphertext("DECRYPT ERROR: #{e.message}")
       end
 
@@ -294,8 +303,6 @@ module Enigma
         when "C\u00e9sar"
           key = key_str.empty? ? '3' : key_str
           Enigma::Core::Cipher::Caesar.new(key)
-        else
-          nil
         end
       end
 

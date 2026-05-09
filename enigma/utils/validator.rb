@@ -6,7 +6,7 @@
 #   No business logic — pure validation utilities.
 #
 
-require_relative '../core/errors'
+require_relative '../app/core/errors'
 
 module Enigma
   module Utils
@@ -16,7 +16,7 @@ module Enigma
       # @return [void]
       # @raise [Errors::InvalidKeyError] if value is nil or empty
       def not_empty(value, name)
-        raise Enigma::Errors::InvalidKeyError, "#{name} cannot be empty" if value.nil? || value.to_s.empty?
+        raise Enigma::Errors::InvalidKeyError, "#{name} cannot be empty" if value.nil? || value.to_s.strip.empty?
       end
     end
   end

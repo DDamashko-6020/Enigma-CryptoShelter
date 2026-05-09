@@ -29,14 +29,14 @@ module Enigma
       # @param data [String] binary data
       def write(path, data)
         dir = File.dirname(path)
-        FileUtils.mkdir_p(dir) unless Dir.exist?(dir)
+        FileUtils.mkdir_p(dir)
         File.binwrite(path, data)
         File.chmod(FILE_PERMISSIONS, path)
       end
 
       # @param path [String] file path
       def delete(path)
-        File.delete(path) if File.exist?(path)
+        FileUtils.rm_f(path)
       end
 
       # @param path [String] file path

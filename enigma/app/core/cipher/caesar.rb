@@ -21,7 +21,7 @@ module Enigma
       class Caesar < Base
         PRINTABLE_MIN = 32
         PRINTABLE_MAX = 126
-        PRINTABLE_RANGE = PRINTABLE_MAX - PRINTABLE_MIN + 1  # 95
+        PRINTABLE_RANGE = PRINTABLE_MAX - PRINTABLE_MIN + 1 # 95
 
         private
 
@@ -65,8 +65,7 @@ module Enigma
         # @raise [Errors::CorruptedDataError] on malformed input
         def decrypt(encoded)
           raw = Base64.strict_decode64(encoded)
-          shifted = raw.bytes.map { |b| shift_byte(b, -@shift) }.pack('C*')
-          shifted
+          raw.bytes.map { |b| shift_byte(b, -@shift) }.pack('C*')
         rescue ArgumentError => e
           raise Errors::CorruptedDataError, "Invalid Base64: #{e.message}"
         end

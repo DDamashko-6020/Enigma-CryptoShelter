@@ -4,11 +4,15 @@ RSpec.describe Enigma::Core::Vault::Manager do
   let(:tmp_path) { File.join('/tmp', "enigma_vault_test_#{Time.now.to_i}_#{rand(9999)}.vault") }
   let(:password) { 'master-password' }
   let(:km) { Enigma::Core::KeyMaster.instance }
-  let(:aes) { Enigma::Core::Cipher::AesGcm.new(km.vault_key(password)) }
-  let(:storage) { Enigma::Core::Vault::Storage.new(tmp_path, aes) }
+  let(:storage) { Enigma::Core::Vault::Storage.new }
   subject(:manager) { described_class.new(storage, km, password) }
 
-  after(:each) { File.delete(tmp_path) if File.exist?(tmp_path) }
+  before do
+    stub_const("#{Enigma::Core::Vault::Storage}::VAULT_PATH", tmp_path)
+    FileUtils.rm_f(tmp_path)
+  end
+
+  after(:each) { FileUtils.rm_f(tmp_path) if File.exist?(tmp_path) }
 
   describe 'initial state' do
     it 'starts locked' do
@@ -22,10 +26,9 @@ RSpec.describe Enigma::Core::Vault::Manager do
       expect(manager.unlocked).to be true
     end
 
-    it 'raises VaultNotFoundError if file missing and create_new! fails' do
-      # Will try to create_new! which saves empty vault
+    it 'persists an empty vault file' do
       manager.unlock
-      expect(manager.unlocked).to be true
+      expect(File.exist?(tmp_path)).to be true
     end
   end
 
@@ -65,7 +68,6 @@ RSpec.describe Enigma::Core::Vault::Manager do
 
       it 'persists to storage' do
         manager.add(site: 'A', username: 'u', password: 'p')
-        # new manager instance should see the persisted data
         new_manager = described_class.new(storage, km, password)
         new_manager.unlock
         expect(new_manager.count).to eq(1)

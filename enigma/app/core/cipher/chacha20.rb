@@ -93,6 +93,8 @@ module Enigma
           cipher.auth_data = ''
 
           cipher.update(ciphertext) + cipher.final
+        rescue ArgumentError => e
+          raise Errors::CorruptedDataError, "Invalid Base64: #{e.message}"
         rescue OpenSSL::Cipher::CipherError => e
           raise Errors::AuthTagError, "Decryption failed: #{e.message}"
         end

@@ -1,7 +1,10 @@
 .bundle/
 vendor/
+.coverage
+coverage/
 *.lock
 .DS_Store
 *.local
-.enigma_vault.dat
+.enigma_cryptoshelter/
 *.ultra
+.ruby-lsp/

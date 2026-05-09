@@ -21,10 +21,10 @@ module Enigma
     module Cipher
       class Factory
         REGISTRY = {
-          'AES-256-GCM'        => AesGcm,
-          'ChaCha20-Poly1305'  => Chacha20,
-          'XOR'                => Xor,
-          "C\u00e9sar"         => Caesar
+          'AES-256-GCM' => AesGcm,
+          'ChaCha20-Poly1305' => Chacha20,
+          'XOR' => Xor,
+          "C\u00e9sar" => Caesar
         }.freeze
 
         REGISTRY_LOWER = REGISTRY.transform_keys(&:downcase).freeze

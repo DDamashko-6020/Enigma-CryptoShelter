@@ -1,24 +1,7 @@
 # frozen_string_literal: true
 
-#
-# app/core/key_master.rb
-# Responsibility: Derive deterministic 32-byte keys from a master password
-#   using SHA-256 with purpose-specific salts.
-#
-#   NEVER stores the master password in any instance variable.
-#   Each call to vault_key or filelock_key derives fresh and returns immediately.
-#
-# Security notes:
-#   - vault key ≠ filelock key (different salt per purpose)
-#   - SHA-256 output is exactly 32 bytes, perfect for AES-256 / ChaCha20
-#   - Master password never touches disk
-#
-# Pattern: Singleton — one KeyMaster instance per process.
-#   Stateless: no instance variables, no mutable configuration.
-#   Thread-safe: instance is created at class load time.
-#
-
-require 'digest'
+require 'openssl'
+require 'securerandom'
 require 'singleton'
 
 module Enigma
@@ -26,23 +9,33 @@ module Enigma
     class KeyMaster
       include Singleton
 
-      VAULT_SALT = 'enigma_vault_v1'
-      FILELOCK_SALT = 'enigma_filelock_v1'
+      ITERATIONS  = 600_000
+      KEY_LENGTH  = 32
+      DIGEST      = 'SHA256'
+      SALT_LENGTH = 32
 
-      # Derive the vault encryption key.
-      #
-      # @param master_password [String] user-chosen master password
-      # @return [String] 32-byte key (raw binary)
-      def vault_key(master_password)
-        Digest::SHA256.digest(master_password + VAULT_SALT)
+      def derive_vault_key(master_password, salt)
+        pbkdf2(master_password, "#{salt}vault")
       end
 
-      # Derive the file lock encryption key.
-      #
-      # @param master_password [String] user-chosen master password
-      # @return [String] 32-byte key (raw binary)
-      def filelock_key(master_password)
-        Digest::SHA256.digest(master_password + FILELOCK_SALT)
+      def derive_filelock_key(master_password, salt)
+        pbkdf2(master_password, "#{salt}filelock")
+      end
+
+      def generate_salt
+        SecureRandom.random_bytes(SALT_LENGTH)
+      end
+
+      private
+
+      def pbkdf2(password, salt)
+        OpenSSL::PKCS5.pbkdf2_hmac(
+          password,
+          salt,
+          ITERATIONS,
+          KEY_LENGTH,
+          DIGEST
+        )
       end
     end
   end

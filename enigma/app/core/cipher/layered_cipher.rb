@@ -21,6 +21,7 @@ module Enigma
         # @param ciphers [Array<Cipher::Base>] ordered list of cipher layers
         def initialize(*ciphers)
           raise Errors::InvalidKeyError, 'At least one cipher required' if ciphers.empty?
+
           @ciphers = ciphers
         end
 
