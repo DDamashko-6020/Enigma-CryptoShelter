@@ -1,0 +1,9 @@
+source 'https://rubygems.org'
+
+group :ui do
+  gem 'gtk3'
+end
+
+group :test do
+  gem 'rspec'
+end
