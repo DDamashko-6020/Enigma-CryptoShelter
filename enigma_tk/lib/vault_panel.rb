@@ -2,8 +2,8 @@ require 'tk'
 require 'tkextlib/tile'
 
 class VaultPanel
-  COLORS = CryptoshelterApp::COLORS
-  FONT = CryptoshelterApp::FONT
+  COLORS = Theme::COLORS
+  FONT = Theme::FONT
 
   def initialize(parent, app)
     @app = app
@@ -104,23 +104,11 @@ class VaultPanel
     @listbox = Tk::Tile::Treeview.new(list_frame) do
       height 0
       selectmode 'browse'
+      columns ['site', 'username']
     end
-    @listbox.configure('columns' => ['site', 'username'])
-    @listbox.heading('#0', text: '')
-    @listbox.column('#0', width: 0, minwidth: 0, stretch: false)
-    @listbox.heading('site', text: 'SITE')
-    @listbox.column('site', width: 180, minwidth: 120)
-    @listbox.heading('username', text: 'USER')
-    @listbox.column('username', width: 120, minwidth: 80)
-
-    @listbox.configure(
-      'background' => COLORS[:bg],
-      'foreground' => COLORS[:text],
-      'fieldbackground' => COLORS[:bg],
-      'font' => TkFont.new("#{FONT} 10"),
-      'borderwidth' => 0,
-      'highlightthickness' => 0
-    )
+    @listbox.columnconfigure('#0', width: 0, minwidth: 0, stretch: false)
+    @listbox.columnconfigure('site', width: 180, minwidth: 120)
+    @listbox.columnconfigure('username', width: 120, minwidth: 80)
 
     scroll = Tk::Tile::Scrollbar.new(list_frame) do
       orient 'vertical'
@@ -131,7 +119,7 @@ class VaultPanel
     @listbox.pack(side: :left, fill: :both, expand: true)
     scroll.pack(side: :right, fill: :y)
 
-    @listbox.bind('<<TreeviewSelect>>') { on_item_selected }
+    @listbox.bind('ButtonRelease-1') { on_item_selected }
 
     @credential_items = []
     add_demo_items
@@ -270,7 +258,7 @@ class VaultPanel
   def on_item_selected
     sel = @listbox.selection
     if sel && !sel.empty?
-      values = @listbox.item(sel[0], 'values')
+      values = @listbox.itemcget(sel[0], 'values')
       idx = @credential_items.index { |c| c[:site] == values[0] && c[:username] == values[1] }
       if idx
         @selected_index = idx

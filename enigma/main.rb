@@ -1,6 +1,10 @@
+#!/usr/bin/env ruby
+require 'tk'
+require 'tkextlib/tile'
+
 $LOAD_PATH.unshift File.join(__dir__, 'lib')
 
 require 'enigma'
-require 'enigma/ui'
+require 'enigma/ui/cryptoshelter_app'
 
-Enigma::UI::MainWindow.new.run
+Enigma::UI::CryptoshelterApp.new.run

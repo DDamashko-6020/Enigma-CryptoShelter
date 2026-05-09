@@ -1,3 +1,2 @@
-require_relative 'enigma/version'
-require_relative 'enigma/utils'
-require_relative 'enigma/core'
+require_relative '../app/core'
+require_relative 'enigma/theme'

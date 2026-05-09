@@ -1,3 +1,5 @@
-$LOAD_PATH.unshift File.join(__dir__, '..', 'lib')
+# frozen_string_literal: true
 
-require 'enigma'
+$LOAD_PATH.unshift File.join(__dir__, '..', 'app')
+
+require 'core'

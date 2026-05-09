@@ -2,8 +2,8 @@ require 'tk'
 require 'tkextlib/tile'
 
 class FileLockPanel
-  COLORS = CryptoshelterApp::COLORS
-  FONT = CryptoshelterApp::FONT
+  COLORS = Theme::COLORS
+  FONT = Theme::FONT
 
   def initialize(parent, app)
     @app = app
@@ -189,6 +189,7 @@ class FileLockPanel
     row = TkFrame.new(parent) { background COLORS[:panel] }
     row.pack(fill: :x, padx: 20, pady: [20, 20])
 
+    me = self
     lock_btn = TkButton.new(row) do
       text '  LOCK  '
       font TkFont.new("#{FONT} 11 bold")
@@ -196,7 +197,7 @@ class FileLockPanel
       background COLORS[:accent]
       relief 'flat'
       height 2
-      command method(:on_lock)
+      command proc { me.on_lock }
     end
     lock_btn.pack(side: :left, padx: [0, 16])
 
@@ -210,7 +211,7 @@ class FileLockPanel
       highlightcolor COLORS[:accent]
       highlightbackground COLORS[:accent]
       height 2
-      command method(:on_unlock)
+      command proc { me.on_unlock }
     end
     unlock_btn.pack(side: :left)
   end

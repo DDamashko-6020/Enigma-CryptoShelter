@@ -3,3 +3,5 @@ vendor/
 *.lock
 .DS_Store
 *.local
+.enigma_vault.dat
+*.ultra

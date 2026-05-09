@@ -2,8 +2,8 @@ require 'tk'
 require 'tkextlib/tile'
 
 class CipherLabPanel
-  COLORS = CryptoshelterApp::COLORS
-  FONT = CryptoshelterApp::FONT
+  COLORS = Theme::COLORS
+  FONT = Theme::FONT
 
   def initialize(parent, app)
     @app = app
@@ -116,6 +116,7 @@ class CipherLabPanel
     end.pack(pad.merge(pady: [2, 0]))
 
     btn_pad = { padx: 16, pady: [20, 0], fill: :x }
+    me = self
 
     encrypt_btn = TkButton.new(parent) do
       text 'ENCRYPT'
@@ -124,7 +125,7 @@ class CipherLabPanel
       background COLORS[:accent]
       relief 'flat'
       height 2
-      command method(:on_encrypt)
+      command proc { me.on_encrypt }
     end
     encrypt_btn.pack(btn_pad)
 
@@ -138,7 +139,7 @@ class CipherLabPanel
       highlightcolor COLORS[:accent]
       highlightbackground COLORS[:accent]
       height 2
-      command method(:on_decrypt)
+      command proc { me.on_decrypt }
     end
     decrypt_btn.pack(btn_pad.merge(pady: [8, 0]))
 
@@ -201,10 +202,7 @@ class CipherLabPanel
     end
     @plain_text.pack(side: :left, fill: :both, expand: true)
 
-    plain_scroll = TkScrollbar.new(plain_frame) do
-      foreground COLORS[:accent]
-      background COLORS[:input]
-    end
+    plain_scroll = TkScrollbar.new(plain_frame)
     plain_scroll.pack(side: :right, fill: :y)
     @plain_text.yscrollbar(plain_scroll)
     plain_scroll.command(proc { |*args| @plain_text.yview(*args) })
@@ -248,10 +246,7 @@ class CipherLabPanel
     end
     @cipher_text.pack(side: :left, fill: :both, expand: true)
 
-    cipher_scroll = TkScrollbar.new(cipher_frame) do
-      foreground COLORS[:accent]
-      background COLORS[:input]
-    end
+    cipher_scroll = TkScrollbar.new(cipher_frame)
     cipher_scroll.pack(side: :right, fill: :y)
     @cipher_text.yscrollbar(cipher_scroll)
     cipher_scroll.command(proc { |*args| @cipher_text.yview(*args) })
