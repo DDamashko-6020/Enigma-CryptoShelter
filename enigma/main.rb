@@ -3,6 +3,7 @@
 
 require 'tk'
 require 'tkextlib/tile'
+require 'ostruct'
 
 require_relative 'app/core'
 require_relative 'utils/file_handler'

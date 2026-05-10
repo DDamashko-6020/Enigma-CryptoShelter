@@ -31,3 +31,6 @@ require_relative 'core/vault/manager'
 # --- File Lock (level 4, depends on ciphers + key_master) ---
 require_relative 'core/file_lock/locker'
 require_relative 'core/file_lock/unlocker'
+
+# --- Auth (level 5, depends on key_master + ciphers) ---
+require_relative 'core/auth/auth_config'
