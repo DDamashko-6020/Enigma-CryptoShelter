@@ -2,6 +2,7 @@
 
 require 'tk'
 require 'tkextlib/tile'
+require 'json'
 require 'securerandom'
 
 module Enigma
@@ -15,7 +16,7 @@ module Enigma
         @vault_open = false
         @manager = nil
         @selected_id = nil
-        @key_deriving = false
+
         build_layout
       end
 
@@ -380,17 +381,7 @@ module Enigma
             @vault_status.configure('text' => "  \u{25CF}  VERIFYING...", 'foreground' => COLORS[:accent])
           end
 
-          storage = Core::Vault::Storage.new
-          km = Core::KeyMaster.instance
-          salt, encrypted = storage.load
-          vault_key = km.derive_vault_key(password, salt)
-          cipher = Core::Cipher::AesGcm.new(vault_key)
-          json = cipher.decrypt(encrypted)
-          data = JSON.parse(json)
-          (data['credentials'] || []).map { |h| Core::Vault::Credential.from_h(h) }
-
-          @manager = Core::Vault::Manager.new(storage, km, password)
-          @manager.unlock
+          @manager = Core::Vault::Manager.open(password)
 
           TkAfter.new(0, 1) do
             @vault_open = true
@@ -519,7 +510,6 @@ module Enigma
         @detail_labels['service'].configure('text' => "  #{cred.site}")
         @detail_labels['username'].configure('text' => "  #{cred.username}")
         @detail_labels['password'].configure('text' => "  #{'*' * cred.password.length}")
-        @detail_labels['password'].instance_variable_set(:@password, cred.password)
         @detail_labels['notes'].configure('text' => "  #{cred.notes}")
         @detail_labels['created'].configure('text' => "  #{cred.created_at}")
       end
