@@ -258,8 +258,8 @@ module Enigma
         plain = @plain_text.get('1.0', 'end-1c')
         return if plain.empty?
 
-        algo = @algorithm.get
-        key_str = @key_entry.get
+        algo = @algorithm.value
+        key_str = @key_entry.value
 
         cipher = build_cipher(algo, key_str)
         return unless cipher
