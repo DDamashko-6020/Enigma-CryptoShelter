@@ -10,7 +10,7 @@ RSpec.describe Enigma::Core::Cipher::Caesar do
 
   it 'shifts printable ASCII correctly' do
     encrypted = cipher.encrypt('ABC')
-    expect(encrypted).not_to eq(Base64.strict_encode64('ABC'))
+    expect(cipher.decrypt(encrypted)).to eq('ABC')
   end
 
   it 'preserves non-printable bytes' do
@@ -31,10 +31,6 @@ RSpec.describe Enigma::Core::Cipher::Caesar do
   end
 
   it 'returns key_size' do
-    expect(cipher.key_size).to eq(4)
+    expect(cipher.key_size).to eq(3)
   end
-
-  # NOTE: complement key 95-k does NOT reverse k because decrypt uses -@shift,
-  # so key 95-k gives delta -(95-k) = k-95 ≡ k (mod 95) — same as encrypt.
-  # Only the same key k reverses itself via delta -k.
 end

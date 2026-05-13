@@ -1,0 +1,234 @@
+# frozen_string_literal: true
+
+#
+# app/ui/main_window.rb
+# Responsibility: TkRoot, session, startup flow, navigation, status bar.
+#
+
+require 'tk'
+require 'tkextlib/tile'
+require 'ostruct'
+
+module Enigma
+  module UI
+    class MainWindow
+      COLORS = {
+        bg_main:      '#0D0D0D',
+        bg_panel:     '#1A1A1A',
+        bg_input:     '#111111',
+        fg_primary:   '#E0E0E0',
+        fg_secondary: '#666666',
+        orange:       '#FF6B00',
+        orange_dim:   '#CC4400',
+        green_ok:     '#00CC66',
+        red_err:      '#CC2200',
+        border:       '#2A2A2A'
+      }.freeze
+
+      FONT = 'Courier'
+
+      def initialize
+        @root = TkRoot.new
+        @root.title 'ENIGMA CRYPTOSHELTER'
+        @root.background COLORS[:bg_main]
+        @root.minsize(1200, 800)
+        @root.geometry('1200x800+50+50')
+      end
+
+      def run
+        if Core::Vault::Storage.vault_exists?
+          show_unlock_screen
+        else
+          show_create_screen
+        end
+        Tk.mainloop
+      end
+
+      private
+
+      def show_create_screen
+        @screen = CreateScreen.new(@root, method(:on_vault_ready))
+      end
+
+      def show_unlock_screen
+        @screen = UnlockScreen.new(@root, method(:on_vault_ready))
+      end
+
+      def on_vault_ready(session)
+        @session = session
+        @screen&.hide
+        build_main_app
+      end
+
+      def build_main_app
+        @root.geometry('1200x800+50+50')
+        @root.resizable(false, false)
+        build_content_area
+        build_top_bar
+        build_status_bar
+        switch_tab('vault')
+      end
+
+      def build_top_bar
+        nav = TkFrame.new(@root) do
+          background COLORS[:bg_main]
+          highlightthickness 0
+          height 40
+        end
+        nav.pack(side: :top, fill: :x)
+        nav.pack_propagate(false)
+
+        TkFrame.new(@root) do
+          background COLORS[:orange]
+          height 1
+        end.pack(side: :top, fill: :x)
+
+        left = TkFrame.new(nav) { background COLORS[:bg_main] }
+        left.pack(side: :left, fill: :y, padx: [20, 0])
+
+        TkLabel.new(left) do
+          text 'ENIGMA CRYPTOSHELTER'
+          font TkFont.new("#{FONT} 12 bold")
+          foreground COLORS[:orange]
+          background COLORS[:bg_main]
+        end.pack(side: :left)
+
+        center = TkFrame.new(nav) { background COLORS[:bg_main] }
+        center.pack(side: :left, expand: true)
+
+        @tab_buttons = {}
+        @tab_underlines = {}
+        @tab_order.each do |key, display_name|
+          f = TkFrame.new(center) { background COLORS[:bg_main] }
+          f.pack(side: :left, padx: 15)
+
+          btn = TkLabel.new(f) do
+            text display_name
+            font TkFont.new("#{FONT} 11")
+            foreground COLORS[:fg_secondary]
+            background COLORS[:bg_main]
+            cursor 'hand2'
+          end
+          btn.pack(pady: [8, 0])
+
+          underline = TkFrame.new(f) do
+            background COLORS[:bg_main]
+            height 2
+          end
+          underline.pack(fill: :x, pady: [4, 0])
+
+          @tab_buttons[key] = btn
+          @tab_underlines[key] = underline
+          btn.bind('Button-1') { |_| switch_tab(key) }
+        end
+
+        @status_icon = TkLabel.new(nav) do
+          text "  \u{25CF} VAULT OPEN"
+          font TkFont.new("#{FONT} 9 bold")
+          foreground COLORS[:green_ok]
+          background COLORS[:bg_main]
+        end
+        @status_icon.pack(side: :right, padx: [0, 20])
+      end
+
+      def build_content_area
+        @content = TkFrame.new(@root) { background COLORS[:bg_main] }
+        @content.pack(side: :top, fill: :both, expand: true)
+
+        @panels = {}
+        @tab_order = {}
+
+        @panels['vault'] = VaultPanel.new(@content, @session)
+        @tab_order['vault'] = 'Vault'
+
+        begin
+          @panels['cipher_lab'] = CipherPanel.new(@content)
+          @tab_order['cipher_lab'] = 'Cipher Lab'
+        rescue StandardError => e
+          warn "Cipher Lab no disponible: #{e.message}"
+        end
+
+        begin
+          @panels['file_lock'] = FileLockPanel.new(@content, @session)
+          @tab_order['file_lock'] = 'File Lock'
+        rescue StandardError => e
+          warn "File Lock no disponible: #{e.message}"
+        end
+
+        @panels.each_value(&:hide)
+      end
+
+      def build_status_bar
+        TkFrame.new(@root) do
+          background COLORS[:orange]
+          height 1
+        end.pack(side: :bottom, fill: :x)
+
+        bar = TkFrame.new(@root) do
+          background COLORS[:bg_main]
+          height 30
+        end
+        bar.pack(side: :bottom, fill: :x)
+        bar.pack_propagate(false)
+
+        left = TkFrame.new(bar) { background COLORS[:bg_main] }
+        left.pack(side: :left, fill: :y, padx: [20, 0])
+
+        TkLabel.new(left) do
+          text "\u{25CF} OFFLINE MODE | AES-256-GCM ACTIVE"
+          font TkFont.new("#{FONT} 9")
+          foreground COLORS[:fg_secondary]
+          background COLORS[:bg_main]
+        end.pack(side: :left)
+
+        right = TkFrame.new(bar) { background COLORS[:bg_main] }
+        right.pack(side: :right, fill: :y, padx: [0, 20])
+
+        TkLabel.new(right) do
+          text 'System Logs'
+          font TkFont.new("#{FONT} 9")
+          foreground COLORS[:fg_secondary]
+          background COLORS[:bg_main]
+          cursor 'hand2'
+        end.pack(side: :left)
+
+        TkLabel.new(right) do
+          text ' | '
+          font TkFont.new("#{FONT} 9")
+          foreground COLORS[:fg_secondary]
+          background COLORS[:bg_main]
+        end.pack(side: :left)
+
+        TkLabel.new(right) do
+          text 'Network Status'
+          font TkFont.new("#{FONT} 9")
+          foreground COLORS[:fg_secondary]
+          background COLORS[:bg_main]
+          cursor 'hand2'
+        end.pack(side: :left)
+      end
+
+      def switch_tab(key)
+        return unless @panels.key?(key)
+
+        @current_tab = key
+        @tab_underlines.each do |k, underline|
+          color = k == key ? COLORS[:orange] : COLORS[:bg_main]
+          underline.configure('background' => color)
+        end
+        @tab_buttons.each do |k, btn|
+          color = k == key ? COLORS[:fg_primary] : COLORS[:fg_secondary]
+          btn.configure('foreground' => color)
+        end
+        @panels.each_value(&:hide)
+        @panels[key].show
+      end
+    end
+  end
+end
+
+require_relative 'screens/create_screen'
+require_relative 'screens/unlock_screen'
+require_relative 'panels/vault_panel'
+require_relative 'panels/cipher_panel'
+require_relative 'panels/file_lock_panel'

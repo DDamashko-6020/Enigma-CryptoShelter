@@ -2,13 +2,16 @@
 
 RSpec.describe Enigma::Core::Cipher::Factory do
   describe '#build' do
+    let(:aes_key) { "\x01" * 32 }
+    let(:chacha_key) { "\x02" * 32 }
+
     it 'builds an AesGcm from "AES-256-GCM"' do
-      cipher = described_class.build('AES-256-GCM', 'key')
+      cipher = described_class.build('AES-256-GCM', aes_key)
       expect(cipher).to be_a(Enigma::Core::Cipher::AesGcm)
     end
 
     it 'builds a ChaCha20 from "ChaCha20-Poly1305"' do
-      cipher = described_class.build('ChaCha20-Poly1305', 'key')
+      cipher = described_class.build('ChaCha20-Poly1305', chacha_key)
       expect(cipher).to be_a(Enigma::Core::Cipher::Chacha20)
     end
 
@@ -23,7 +26,7 @@ RSpec.describe Enigma::Core::Cipher::Factory do
     end
 
     it 'is case insensitive' do
-      cipher = described_class.build('aes-256-gcm', 'key')
+      cipher = described_class.build('aes-256-gcm', aes_key)
       expect(cipher).to be_a(Enigma::Core::Cipher::AesGcm)
     end
 
@@ -33,7 +36,7 @@ RSpec.describe Enigma::Core::Cipher::Factory do
     end
 
     it 'derives 32-byte key for AES-256-GCM' do
-      cipher = described_class.build('AES-256-GCM', 'short')
+      cipher = described_class.build('AES-256-GCM', aes_key)
       expect(cipher.key_size).to eq(32)
     end
 

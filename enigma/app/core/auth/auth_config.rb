@@ -38,40 +38,25 @@ module Enigma
         def verify(master_password)
           return nil unless exists?
 
-          raw = File.binread(AUTH_PATH)
-          return nil unless raw.start_with?(MAGIC)
+          raw = read_auth_file or return nil
 
           salt = raw[MAGIC_SIZE, SALT_SIZE]
           stored_hash = raw[MAGIC_SIZE + SALT_SIZE, HASH_SIZE]
-          computed_hash = derive_verify_hash(master_password, salt)
+          return nil unless stored_hash == derive_verify_hash(master_password, salt)
 
-          return nil unless stored_hash == computed_hash
-
-          json_str = raw[(MAGIC_SIZE + SALT_SIZE + HASH_SIZE)..]
-          data = JSON.parse(json_str)
-          questions = (data['questions'] || []).map { |q| { 'q' => q['q'], 'h' => q['h'] } }
-          { salt: salt, questions: questions }
+          { salt: salt, questions: load_questions_with_hashes }
         rescue StandardError
           nil
         end
 
         def load_questions_text
-          raw = File.binread(AUTH_PATH)
-          return nil unless raw.start_with?(MAGIC)
-
-          json_str = raw[(MAGIC_SIZE + SALT_SIZE + HASH_SIZE)..]
-          data = JSON.parse(json_str)
-          (data['questions'] || []).map { |q| q['q'] }
-        rescue StandardError
-          nil
+          questions = load_questions_with_hashes
+          questions&.map { |q| q['q'] }
         end
 
         def load_questions_with_hashes
-          raw = File.binread(AUTH_PATH)
-          return nil unless raw.start_with?(MAGIC)
-
-          json_str = raw[(MAGIC_SIZE + SALT_SIZE + HASH_SIZE)..]
-          data = JSON.parse(json_str)
+          raw = read_auth_file or return nil
+          data = parse_auth_json(raw)
           (data['questions'] || []).map { |q| { 'q' => q['q'], 'h' => q['h'] } }
         rescue StandardError
           nil
@@ -95,6 +80,20 @@ module Enigma
         end
 
         private
+
+        def read_auth_file
+          return nil unless exists?
+
+          raw = File.binread(AUTH_PATH)
+          return nil unless raw.start_with?(MAGIC)
+
+          raw
+        end
+
+        def parse_auth_json(raw)
+          json_str = raw[(MAGIC_SIZE + SALT_SIZE + HASH_SIZE)..]
+          JSON.parse(json_str)
+        end
 
         def derive_verify_hash(password, salt)
           km = Core::KeyMaster.instance

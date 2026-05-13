@@ -1,31 +1,56 @@
 # frozen_string_literal: true
 
+#
+# utils/password_generator.rb
+# Responsibility: Cryptographic password generation and strength evaluation.
+#
+
 require 'securerandom'
 
 module Enigma
   module Utils
+    # Pattern: Strategy (charset)
     class PasswordGenerator
-      LOWERCASE = ('a'..'z').to_a.freeze
-      UPPERCASE = ('A'..'Z').to_a.freeze
-      DIGITS    = ('0'..'9').to_a.freeze
-      SYMBOLS   = %w[! @ # $ % ^ & * ( ) - _ = + [ ] { } | ; : , . ?].freeze
-      ALL       = (LOWERCASE + UPPERCASE + DIGITS + SYMBOLS).freeze
+      LOWER   = ('a'..'z').to_a.freeze
+      UPPER   = ('A'..'Z').to_a.freeze
+      DIGITS  = ('0'..'9').to_a.freeze
+      SYMBOLS = %w[! @ # $ % & * - _ = + ? .].freeze
+      ALL     = (LOWER + UPPER + DIGITS + SYMBOLS).freeze
 
+      # @param length [Integer] password length (default 20)
+      # @param symbols [Boolean] include symbols (default true)
+      # @return [String] generated password
       def self.generate(length: 20, symbols: true)
-        charset = symbols ? ALL : (LOWERCASE + UPPERCASE + DIGITS)
-        Array.new(length) { charset[SecureRandom.random_number(charset.size)] }
-             .then { |chars| ensure_complexity(chars, symbols) }
-             .shuffle
-             .join
+        charset = symbols ? ALL : (LOWER + UPPER + DIGITS)
+        pass = Array.new(length) { charset[SecureRandom.random_number(charset.size)] }
+        ensure_complexity!(pass, symbols)
+        pass.shuffle.join
       end
 
-      def self.ensure_complexity(chars, symbols)
-        chars[0] = UPPERCASE.sample(random: SecureRandom)
-        chars[1] = DIGITS.sample(random: SecureRandom)
-        chars[2] = SYMBOLS.sample(random: SecureRandom) if symbols
-        chars
+      # @param password [String] password to evaluate
+      # @return [Symbol] :weak, :medium, or :strong
+      def self.strength(password)
+        score = 0
+        score += 1 if password.length >= 8
+        score += 1 if password.length >= 16
+        score += 1 if password.match?(/[A-Z]/)
+        score += 1 if password.match?(/[0-9]/)
+        score += 1 if password.match?(/[^A-Za-z0-9]/)
+
+        case score
+        when 0..2 then :weak
+        when 3    then :medium
+        else           :strong
+        end
       end
-      private_class_method :ensure_complexity
+
+      def self.ensure_complexity!(pass, symbols)
+        pass[0] = UPPER[SecureRandom.random_number(UPPER.size)]
+        pass[1] = DIGITS[SecureRandom.random_number(DIGITS.size)]
+        pass[2] = SYMBOLS[SecureRandom.random_number(SYMBOLS.size)] if symbols
+      end
+
+      private_class_method :ensure_complexity!
     end
   end
 end

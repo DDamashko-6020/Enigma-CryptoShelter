@@ -25,21 +25,37 @@ module Enigma
           @ciphers = ciphers
         end
 
+        private
+
+        # Each inner cipher handles its own Base64 encoding, so the composite
+        # passes through raw output without additional encoding.
+        def encode_output(raw)
+          raw
+        end
+
+        # Each inner cipher handles its own Base64 decoding, so the composite
+        # passes through raw input without additional decoding.
+        def decode_input(str)
+          str
+        end
+
         # Apply each cipher layer in sequence to encrypt.
         #
-        # @param data [String] plaintext
-        # @return [String] ciphertext (output of the last layer)
-        def encrypt(data)
+        # @param data [String] raw plaintext
+        # @return [String] ciphertext from the last layer (already encoded)
+        def encrypt_impl(data)
           @ciphers.reduce(data) { |d, cipher| cipher.encrypt(d) }
         end
 
         # Apply each cipher layer in reverse sequence to decrypt.
         #
-        # @param encoded [String] ciphertext from #encrypt
+        # @param raw [String] ciphertext from #encrypt (already encoded)
         # @return [String] plaintext
-        def decrypt(encoded)
-          @ciphers.reverse.reduce(encoded) { |d, cipher| cipher.decrypt(d) }
+        def decrypt_impl(raw)
+          @ciphers.reverse.reduce(raw) { |d, cipher| cipher.decrypt(d) }
         end
+
+        public
 
         # @return [String] concatenated algorithm names (e.g. 'AES-256-GCM + ChaCha20-Poly1305')
         def algorithm_name

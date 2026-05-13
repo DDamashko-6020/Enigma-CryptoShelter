@@ -1,25 +1,23 @@
 # frozen_string_literal: true
 
 RSpec.describe Enigma::Utils::Validator do
-  let(:v) { described_class.new }
-
-  describe '#not_empty' do
+  describe '.not_empty' do
     it 'passes for non-empty string' do
-      expect { v.not_empty('valor', 'campo') }.not_to raise_error
+      expect { described_class.not_empty('valor') }.not_to raise_error
     end
 
     it 'raises InvalidKeyError for empty string' do
-      expect { v.not_empty('', 'campo') }
+      expect { described_class.not_empty('') }
         .to raise_error(Enigma::Errors::InvalidKeyError)
     end
 
     it 'raises InvalidKeyError for nil' do
-      expect { v.not_empty(nil, 'campo') }
+      expect { described_class.not_empty(nil) }
         .to raise_error(Enigma::Errors::InvalidKeyError)
     end
 
     it 'raises InvalidKeyError for whitespace only' do
-      expect { v.not_empty('   ', 'campo') }
+      expect { described_class.not_empty('   ') }
         .to raise_error(Enigma::Errors::InvalidKeyError)
     end
   end

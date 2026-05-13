@@ -19,6 +19,10 @@ RSpec.describe Enigma::Core::Vault::Credential do
       expect(cred.created_at).to match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)
     end
 
+    it 'generates ISO8601 updated_at' do
+      expect(cred.updated_at).to match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)
+    end
+
     it 'defaults notes to empty string' do
       c = described_class.new(site: 'X', username: 'u', password: 'p')
       expect(c.notes).to eq('')
@@ -33,25 +37,42 @@ RSpec.describe Enigma::Core::Vault::Credential do
   describe 'validation' do
     it 'raises on empty site' do
       expect { described_class.new(site: '', username: 'u', password: 'p') }
-        .to raise_error(Enigma::Errors::VaultError)
+        .to raise_error(ArgumentError)
     end
 
     it 'raises on empty username' do
       expect { described_class.new(site: 'S', username: '', password: 'p') }
-        .to raise_error(Enigma::Errors::VaultError)
+        .to raise_error(ArgumentError)
     end
 
     it 'raises on empty password' do
       expect { described_class.new(site: 'S', username: 'u', password: '') }
-        .to raise_error(Enigma::Errors::VaultError)
+        .to raise_error(ArgumentError)
     end
   end
 
-  describe 'two instances have different ids' do
-    let(:c1) { described_class.new(site: 'A', username: 'u', password: 'p') }
-    let(:c2) { described_class.new(site: 'B', username: 'u', password: 'p') }
+  describe 'immutability' do
+    it 'is frozen' do
+      expect(cred).to be_frozen
+    end
+  end
 
-    it { expect(c1.id).not_to eq(c2.id) }
+  describe 'value equality' do
+    it 'compares by id' do
+      c1 = described_class.new(site: 'S', username: 'u', password: 'p', id: 'same-id')
+      c2 = described_class.new(site: 'X', username: 'y', password: 'z', id: 'same-id')
+      expect(c1).to eq(c2)
+    end
+
+    it 'distinguishes different ids' do
+      c1 = described_class.new(site: 'S', username: 'u', password: 'p')
+      c2 = described_class.new(site: 'S', username: 'u', password: 'p')
+      expect(c1).not_to eq(c2)
+    end
+
+    it 'has null? false' do
+      expect(cred.null?).to be false
+    end
   end
 
   describe '#to_h / #from_h round-trip' do
@@ -63,6 +84,7 @@ RSpec.describe Enigma::Core::Vault::Credential do
       expect(restored.password).to eq(cred.password)
       expect(restored.notes).to eq(cred.notes)
       expect(restored.created_at).to eq(cred.created_at)
+      expect(restored.updated_at).to eq(cred.updated_at)
     end
 
     it 'handles string keys' do

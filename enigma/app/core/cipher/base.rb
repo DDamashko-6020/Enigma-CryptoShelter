@@ -2,44 +2,64 @@
 
 #
 # app/core/cipher/base.rb
-# Responsibility: Abstract base class for all cipher algorithms.
-#   Defines the contract (encrypt / decrypt / algorithm_name / key_size)
-#   that every cipher subclass must implement.
-#
-# OOP pillar — ABSTRACTION: defines the interface, hides implementation.
-# OOP pillar — INHERITANCE: all ciphers inherit from this class.
+# Responsibility: Abstract base class for all ciphers (Template Method).
 #
 
-require_relative '../errors'
+require_relative '../errors/cipher_error'
 
 module Enigma
   module Core
     module Cipher
       class Base
-        # @return [Integer] the expected key length in bytes
-        def key_size
-          raise NotImplementedError, "#{self.class} must implement #key_size"
+        def self.new(*)
+          if self == Base
+            raise NotImplementedError,
+                  'Cipher::Base es abstracta. Usa AesGcm, Chacha20, Xor o Caesar'
+          end
+          super
         end
 
-        # @return [String] human-readable algorithm identifier
+        def initialize(key)
+          @key = key
+          validate_key!
+        end
+
+        def encrypt(plaintext)
+          validate_input!(plaintext)
+          encrypt_impl(plaintext)
+        end
+
+        def decrypt(ciphertext)
+          validate_input!(ciphertext)
+          decrypt_impl(ciphertext)
+        end
+
         def algorithm_name
-          raise NotImplementedError, "#{self.class} must implement #algorithm_name"
+          raise NotImplementedError
         end
 
-        # Encrypt plaintext and return encoded ciphertext.
-        #
-        # @param data [String] plaintext to encrypt
-        # @return [String] Base64-encoded ciphertext (includes IV + tag for AEAD)
-        def encrypt(data)
-          raise NotImplementedError, "#{self.class} must implement #encrypt"
+        def key_size
+          raise NotImplementedError
         end
 
-        # Decrypt encoded ciphertext back to plaintext.
-        #
-        # @param encoded [String] Base64-encoded ciphertext (output of #encrypt)
-        # @return [String] decrypted plaintext
-        def decrypt(encoded)
-          raise NotImplementedError, "#{self.class} must implement #decrypt"
+        private
+
+        attr_reader :key
+
+        def validate_key!
+          raise Errors::InvalidKeyError if key.nil? || key.empty?
+        end
+
+        def validate_input!(data)
+          raise Errors::CorruptedDataError if data.nil? || data.empty?
+        end
+
+        def encrypt_impl(_plaintext)
+          raise NotImplementedError
+        end
+
+        def decrypt_impl(_ciphertext)
+          raise NotImplementedError
         end
       end
     end

@@ -3,27 +3,29 @@
 RSpec.describe Enigma::Core::Vault::Manager do
   let(:tmp_path) { File.join('/tmp', "enigma_vault_test_#{Time.now.to_i}_#{rand(9999)}.vault") }
   let(:password) { 'master-password' }
-  let(:km) { Enigma::Core::KeyMaster.instance }
-  let(:storage) { Enigma::Core::Vault::Storage.new }
-  subject(:manager) { described_class.new(storage, km, password) }
+  let(:salt) { SecureRandom.random_bytes(32) }
+  let(:vault_key) { Enigma::Core::KeyMaster.instance.derive_vault_key(password, salt) }
+  let(:cipher) { Enigma::Core::Cipher::AesGcm.new(vault_key) }
+  let(:storage) { Enigma::Core::Vault::Storage.new(tmp_path, cipher) }
+  subject(:manager) { described_class.new(storage) }
 
   before do
-    stub_const("#{Enigma::Core::Vault::Storage}::VAULT_PATH", tmp_path)
     FileUtils.rm_f(tmp_path)
+    storage.create_new!(salt)
   end
 
   after(:each) { FileUtils.rm_f(tmp_path) if File.exist?(tmp_path) }
 
   describe 'initial state' do
     it 'starts locked' do
-      expect(manager.unlocked).to be false
+      expect(manager.unlocked?).to be false
     end
   end
 
   describe '#unlock' do
-    it 'unlocks with correct password on new vault' do
+    it 'unlocks a new vault' do
       manager.unlock
-      expect(manager.unlocked).to be true
+      expect(manager.unlocked?).to be true
     end
 
     it 'persists an empty vault file' do
@@ -68,7 +70,7 @@ RSpec.describe Enigma::Core::Vault::Manager do
 
       it 'persists to storage' do
         manager.add(site: 'A', username: 'u', password: 'p')
-        new_manager = described_class.new(storage, km, password)
+        new_manager = described_class.new(storage)
         new_manager.unlock
         expect(new_manager.count).to eq(1)
       end
@@ -130,6 +132,14 @@ RSpec.describe Enigma::Core::Vault::Manager do
         expect(updated.created_at).to eq(cred.created_at)
       end
 
+      it 'updates updated_at' do
+        cred = manager.add(site: 'S', username: 'u', password: 'p')
+        old_time = cred.updated_at
+        sleep 1
+        updated = manager.update(cred.id, site: 'NewSite')
+        expect(updated.updated_at).not_to eq(old_time)
+      end
+
       it 'raises CredentialNotFoundError for unknown id' do
         expect { manager.update('bad-id', site: 'X') }
           .to raise_error(Enigma::Errors::CredentialNotFoundError)
@@ -151,17 +161,17 @@ RSpec.describe Enigma::Core::Vault::Manager do
       it 'persists deletion' do
         cred = manager.add(site: 'S', username: 'u', password: 'p')
         manager.delete(cred.id)
-        new_manager = described_class.new(storage, km, password)
+        new_manager = described_class.new(storage)
         new_manager.unlock
         expect(new_manager.count).to eq(0)
       end
     end
 
     describe '#lock' do
-      it 'clears credentials' do
+      it 'locks the vault and clears credentials' do
         manager.add(site: 'S', username: 'u', password: 'p')
         manager.lock
-        expect(manager.unlocked).to be false
+        expect(manager.unlocked?).to be false
       end
 
       it 'prevents further CRUD' do

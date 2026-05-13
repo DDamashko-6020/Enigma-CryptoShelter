@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
-$LOAD_PATH.unshift File.join(__dir__, '..', 'app')
 $LOAD_PATH.unshift File.join(__dir__, '..')
+$LOAD_PATH.unshift File.join(__dir__, '..', 'app')
 
-require 'core'
+require 'core/core'
 require 'utils/password_generator'
 require 'utils/validator'
 require 'utils/file_handler'
@@ -14,9 +14,9 @@ if ENV['COVERAGE']
     add_filter '/spec/'
     add_filter '/vendor/'
     minimum_coverage 70
-    add_group 'Cipher',    'app/core/cipher'
-    add_group 'Vault',     'app/core/vault'
-    add_group 'FileLock',  'app/core/file_lock'
-    add_group 'Utils',     'utils'
+    add_group 'Cipher',   'app/core/cipher'
+    add_group 'Vault',    'app/core/vault'
+    add_group 'FileLock', 'app/core/file_lock'
+    add_group 'Utils',    'utils'
   end
 end

@@ -1,107 +1,78 @@
 # frozen_string_literal: true
 
-require 'json'
-require_relative '../errors'
-require_relative '../key_master'
-require_relative '../cipher/aes_gcm'
+#
+# app/core/vault/manager.rb
+# Responsibility: State machine for vault credentials (locked/unlocked).
+#
+
+require_relative '../errors/vault_error'
 require_relative 'storage'
 require_relative 'credential'
 
 module Enigma
   module Core
     module Vault
+      # Pattern: State
       class Manager
-        attr_reader :unlocked
+        LOCKED   = :locked
+        UNLOCKED = :unlocked
 
-        def initialize(storage, key_master, master_password)
-          @storage = storage
-          @key_master = key_master
-          @master_password = master_password.dup
+        def initialize(storage)
+          @storage     = storage
           @credentials = []
-          @unlocked = false
-        end
-
-        def self.open(master_password)
-          km = KeyMaster.instance
-          storage = Storage.new
-          manager = new(storage, km, master_password)
-          manager.unlock
-          manager
+          @state       = LOCKED
         end
 
         def unlock
-          if @storage.exists?
-            salt, encrypted = @storage.load
-            key = @key_master.derive_vault_key(@master_password, salt)
-            @cipher = Cipher::AesGcm.new(key)
-            json = @cipher.decrypt(encrypted)
-            data = JSON.parse(json)
-            @credentials = (data['credentials'] || []).map { |h| Credential.from_h(h) }
-          else
-            salt = @key_master.generate_salt
-            key = @key_master.derive_vault_key(@master_password, salt)
-            @cipher = Cipher::AesGcm.new(key)
-            empty_encrypted = @cipher.encrypt(JSON.generate({ 'credentials' => [] }))
-            @storage.create_new!(salt, empty_encrypted)
-            @credentials = []
-          end
-
-          @master_password.replace('')
-          @salt = salt
-          @unlocked = true
+          @credentials = @storage.load
+          @state       = UNLOCKED
+        rescue Errors::AuthTagError
+          @state = LOCKED
+          raise
         end
 
         def lock
-          @credentials.clear
-          @cipher = nil
-          @salt = nil
-          @unlocked = false
+          @credentials = []
+          @state       = LOCKED
         end
 
-        def all
-          raise_locked unless @unlocked
-          @credentials.dup
+        def unlocked?
+          @state == UNLOCKED
         end
 
-        def find(query)
-          raise_locked unless @unlocked
-
-          q = query.downcase
-          @credentials.select do |c|
-            c.site.downcase.include?(q) || c.username.downcase.include?(q) || c.notes.downcase.include?(q)
-          end
-        end
-
-        def find_by_id(id)
-          raise_locked unless @unlocked
-          @credentials.find { |c| c.id == id }
-        end
-
-        alias search find
-
-        def add(site: nil, username: nil, password: nil, notes: nil, credential: nil)
-          raise_locked unless @unlocked
-
-          cred = credential || Credential.new(site: site, username: username, password: password, notes: notes || '')
+        def add(site:, username:, password:, notes: '')
+          require_unlocked!
+          cred = Credential.new(site: site, username: username,
+                                password: password, notes: notes)
           @credentials << cred
           persist!
           cred
         end
 
+        def all
+          require_unlocked!
+          @credentials.dup
+        end
+
+        def find(query)
+          require_unlocked!
+          q = query.to_s.downcase
+          @credentials.select do |c|
+            c.site.downcase.include?(q) || c.username.downcase.include?(q)
+          end
+        end
+
         def update(id, **fields)
-          raise_locked unless @unlocked
-
-          idx = @credentials.index { |c| c.id == id }
-          raise Errors::CredentialNotFoundError, id unless idx
-
+          require_unlocked!
+          idx = find_index!(id)
           old = @credentials[idx]
           updated = Credential.new(
-            site: fields[:site] || old.site,
-            username: fields[:username] || old.username,
-            password: fields[:password] || old.password,
-            notes: fields.key?(:notes) ? fields[:notes] : old.notes,
-            id: old.id,
-            created_at: old.created_at
+            id: old.id, created_at: old.created_at,
+            updated_at: Time.now.iso8601,
+            site:     fields.fetch(:site, old.site),
+            username: fields.fetch(:username, old.username),
+            password: fields.fetch(:password, old.password),
+            notes:    fields.fetch(:notes, old.notes)
           )
           @credentials[idx] = updated
           persist!
@@ -109,12 +80,9 @@ module Enigma
         end
 
         def delete(id)
-          raise_locked unless @unlocked
-
-          cred = @credentials.find { |c| c.id == id }
-          raise Errors::CredentialNotFoundError, id unless cred
-
-          @credentials.delete(cred)
+          require_unlocked!
+          find_index!(id)
+          @credentials.reject! { |c| c.id == id }
           persist!
         end
 
@@ -122,20 +90,21 @@ module Enigma
           @credentials.size
         end
 
-        def clear!
-          @credentials.clear
-        end
-
         private
 
-        def persist!
-          data = JSON.generate({ 'credentials' => @credentials.map(&:to_h) })
-          encrypted = @cipher.encrypt(data)
-          @storage.save(@salt, encrypted)
+        def require_unlocked!
+          raise Errors::VaultLockedError unless unlocked?
         end
 
-        def raise_locked
-          raise Errors::VaultLockedError, 'Vault is locked. Call unlock first.'
+        def find_index!(id)
+          idx = @credentials.index { |c| c.id == id }
+          raise Errors::CredentialNotFoundError, id if idx.nil?
+
+          idx
+        end
+
+        def persist!
+          @storage.save(@credentials)
         end
       end
     end

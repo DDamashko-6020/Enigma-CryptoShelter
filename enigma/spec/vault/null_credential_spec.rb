@@ -27,6 +27,10 @@ RSpec.describe Enigma::Core::Vault::NullCredential do
     expect(null.created_at).to eq('')
   end
 
+  it 'returns empty string for updated_at' do
+    expect(null.updated_at).to eq('')
+  end
+
   it 'returns empty hash for to_h' do
     expect(null.to_h).to eq({})
   end

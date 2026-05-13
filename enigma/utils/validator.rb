@@ -1,22 +1,22 @@
 # frozen_string_literal: true
 
 #
-# app/utils/validator.rb
-# Responsibility: Shared validation helpers used across core modules.
-#   No business logic — pure validation utilities.
+# utils/validator.rb
+# Responsibility: Input validation helpers.
 #
 
-require_relative '../app/core/errors'
+require_relative '../app/core/errors/cipher_error'
 
 module Enigma
   module Utils
     class Validator
-      # @param value [Object] value to check
-      # @param name [String] field name for error message
-      # @return [void]
-      # @raise [Errors::InvalidKeyError] if value is nil or empty
-      def not_empty(value, name)
-        raise Enigma::Errors::InvalidKeyError, "#{name} cannot be empty" if value.nil? || value.to_s.strip.empty?
+      # @param str [String, nil] value to check
+      # @raise [Errors::InvalidKeyError] if nil or empty
+      def self.not_empty(str)
+        if str.nil? || str.to_s.strip.empty?
+          raise Enigma::Errors::InvalidKeyError, 'El valor no puede estar vac\u00edo'
+        end
+        str
       end
     end
   end

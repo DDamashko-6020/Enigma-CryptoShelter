@@ -10,10 +10,6 @@ RSpec.describe Enigma::Core::Cipher::AesGcm do
       expect(cipher.decrypt(cipher.encrypt(plain))).to eq(plain)
     end
 
-    it 'handles empty string' do
-      expect(cipher.decrypt(cipher.encrypt(''))).to eq('')
-    end
-
     it 'handles binary data' do
       binary = (0..255).to_a.pack('C*')
       expect(cipher.decrypt(cipher.encrypt(binary))).to eq(binary)

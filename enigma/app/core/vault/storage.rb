@@ -1,60 +1,69 @@
 # frozen_string_literal: true
 
+#
+# app/core/vault/storage.rb
+# Responsibility: File I/O for vault — magic, salt, encrypted JSON.
+#
+
 require 'json'
 require 'fileutils'
-require_relative '../errors'
-require_relative 'credential'
+require 'openssl'
 
 module Enigma
   module Core
     module Vault
       class Storage
-        VAULT_DIR      = File.expand_path('~/.enigma_cryptoshelter').freeze
-        VAULT_FILENAME = 'vault.dat'
-        VAULT_PATH     = File.join(VAULT_DIR, VAULT_FILENAME).freeze
-        DIR_MODE       = 0o700
-        FILE_MODE      = 0o600
+        VAULT_DIR  = File.expand_path('~/.enigma_cryptoshelter').freeze
+        VAULT_PATH = File.join(VAULT_DIR, 'vault.dat').freeze
+        DIR_MODE   = 0o700
+        FILE_MODE  = 0o600
 
-        MAGIC      = "ENIGMA\x01".b.freeze
-        MAGIC_SIZE = MAGIC.bytesize
-        SALT_SIZE  = 32
+        MAGIC = "ENIGMA\x01".b.freeze
 
-        def exists?
+        def self.vault_exists?
           File.exist?(VAULT_PATH)
         end
 
-        def create_new!(salt, encrypted_payload)
-          raise Errors::VaultNotFoundError, 'Vault already exists' if exists?
+        def self.read_salt(path = VAULT_PATH)
+          raw = File.binread(path)
+          raise Errors::CorruptedDataError unless raw.start_with?(MAGIC)
 
+          raw[MAGIC.bytesize, 32]
+        end
+
+        def initialize(path, cipher)
+          @path = path
+          @cipher = cipher
+        end
+
+        def exists?
+          File.exist?(@path)
+        end
+
+        def create_new!(salt)
           FileUtils.mkdir_p(VAULT_DIR, mode: DIR_MODE)
-          File.binwrite(VAULT_PATH, build_file(salt, encrypted_payload))
-          File.chmod(FILE_MODE, VAULT_PATH)
+          payload = @cipher.encrypt(JSON.generate({ credentials: [] }))
+          File.binwrite(@path, MAGIC + salt + payload)
+          File.chmod(FILE_MODE, @path)
         end
 
         def load
-          raise Errors::VaultNotFoundError, "Vault not found: #{VAULT_PATH}" unless exists?
+          raw = File.binread(@path)
+          raise Errors::CorruptedDataError unless raw.start_with?(MAGIC)
 
-          raw = File.binread(VAULT_PATH)
-          salt, payload = parse_file(raw)
-          [salt, payload]
+          encrypted = raw[(MAGIC.bytesize + 32)..]
+          json = @cipher.decrypt(encrypted)
+          JSON.parse(json)['credentials'].map { |h| Credential.from_h(h) }
+        rescue OpenSSL::Cipher::CipherError => e
+          raise Errors::AuthTagError, e.message
         end
 
-        def save(salt, encrypted_payload)
-          FileUtils.mkdir_p(VAULT_DIR, mode: DIR_MODE)
-          File.binwrite(VAULT_PATH, build_file(salt, encrypted_payload))
-          File.chmod(FILE_MODE, VAULT_PATH)
-        end
-
-        def build_file(salt, encrypted_payload)
-          MAGIC + salt + encrypted_payload
-        end
-
-        def parse_file(raw_bytes)
-          raise Errors::CorruptedDataError, 'Invalid vault file' unless raw_bytes.start_with?(MAGIC)
-
-          salt    = raw_bytes[MAGIC_SIZE, SALT_SIZE]
-          payload = raw_bytes[(MAGIC_SIZE + SALT_SIZE)..]
-          [salt, payload]
+        def save(credentials)
+          raw = File.binread(@path)
+          salt = raw[MAGIC.bytesize, 32]
+          json = JSON.generate({ credentials: credentials.map(&:to_h) })
+          File.binwrite(@path, MAGIC + salt + @cipher.encrypt(json))
+          File.chmod(FILE_MODE, @path)
         end
       end
     end

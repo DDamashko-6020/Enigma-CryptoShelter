@@ -10,11 +10,15 @@ RSpec.describe Enigma::Core::KeyMaster do
     end
 
     it 'is deterministic for same password and salt' do
-      expect(km.derive_vault_key('test', salt)).to eq(km.derive_vault_key('test', salt))
+      k1 = km.derive_vault_key('test', salt)
+      k2 = km.derive_vault_key('test', salt)
+      expect(k1).to eq(k2)
     end
 
     it 'differs for different passwords' do
-      expect(km.derive_vault_key('a', salt)).not_to eq(km.derive_vault_key('b', salt))
+      k1 = km.derive_vault_key('pass1', salt)
+      k2 = km.derive_vault_key('pass2', salt)
+      expect(k1).not_to eq(k2)
     end
   end
 
@@ -24,7 +28,9 @@ RSpec.describe Enigma::Core::KeyMaster do
     end
 
     it 'differs from vault_key with same password' do
-      expect(km.derive_vault_key('pw', salt)).not_to eq(km.derive_filelock_key('pw', salt))
+      vault = km.derive_vault_key('password', salt)
+      filelock = km.derive_filelock_key('password', salt)
+      expect(vault).not_to eq(filelock)
     end
   end
 
