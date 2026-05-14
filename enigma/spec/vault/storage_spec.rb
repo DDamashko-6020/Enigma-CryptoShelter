@@ -6,7 +6,7 @@ RSpec.describe Enigma::Core::Vault::Storage do
   let(:tmp_path) { File.join('/tmp', "enigma_vault_test_#{Time.now.to_i}_#{rand(9999)}.vault") }
   let(:password) { 'test-password' }
   let(:salt) { SecureRandom.random_bytes(32) }
-  let(:vault_key) { Enigma::Core::KeyMaster.instance.derive_vault_key(password, salt) }
+  let(:vault_key) { Enigma::Core::KeyMaster.instance.derive_session_keys(password, salt)[:vault_key] }
   let(:cipher) { Enigma::Core::Cipher::AesGcm.new(vault_key) }
 
   before { FileUtils.rm_f(tmp_path) }

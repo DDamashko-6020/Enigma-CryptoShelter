@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+# encoding: utf-8
 
 #
 # app/ui/panels/vault_panel.rb
@@ -61,10 +62,10 @@ module Enigma
           highlightbackground COLORS[:border]
         end
         search_entry.pack(fill: :x, ipady: 6, padx: 4, pady: 4)
-        search_entry.insert(0, "\u{1F50D} BUSCAR...")
+        search_entry.insert(0, "🔍 BUSCAR...")
 
         search_entry.bind('FocusIn') do
-          next unless @search_var.value == "\u{1F50D} BUSCAR..."
+          next unless @search_var.value == "🔍 BUSCAR..."
 
           @search_var.value = ''
           search_entry.configure('foreground' => COLORS[:fg_primary])
@@ -72,7 +73,7 @@ module Enigma
         search_entry.bind('FocusOut') do
           next unless @search_var.value.empty?
 
-          @search_var.value = "\u{1F50D} BUSCAR..."
+          @search_var.value = "🔍 BUSCAR..."
           search_entry.configure('foreground' => COLORS[:fg_secondary])
         end
         search_entry.bind('KeyRelease') { on_search }
@@ -210,8 +211,8 @@ module Enigma
         @pass_entry.pack(side: :left, fill: :x, expand: true, ipady: 4)
 
         toggle_btn = TkLabel.new(pass_row) do
-          text '  \u{1F441}  '
-          font TkFont.new("#{FONT} 11")
+          text '  👁  '
+          font TkFont.new(family: MainWindow::FONT_EMOJI, size: 11)
           foreground COLORS[:fg_secondary]
           background COLORS[:bg_input]
           cursor 'hand2'
@@ -220,8 +221,8 @@ module Enigma
         toggle_btn.bind('Button-1') { toggle_password }
 
         gen_btn = TkLabel.new(pass_row) do
-          text '  \u26A1  '
-          font TkFont.new("#{FONT} 11")
+          text '  ⚡  '
+          font TkFont.new(family: MainWindow::FONT_EMOJI, size: 11)
           foreground COLORS[:orange]
           background COLORS[:bg_input]
           cursor 'hand2'
@@ -283,9 +284,9 @@ module Enigma
 
         panel = self
         buttons = [
-          ['  \u{1F4BE} GUARDAR', :on_save, COLORS[:orange], COLORS[:bg_main]],
-          ['  \u{1F5D1} ELIMINAR', :on_delete, COLORS[:red_err], COLORS[:bg_main]],
-          ['  \u{1F4CB} COPIAR CLAVE', :on_copy, COLORS[:orange], COLORS[:bg_main]]
+          ['  💾 GUARDAR', :on_save, COLORS[:orange], COLORS[:bg_main]],
+          ['  🗑 ELIMINAR', :on_delete, COLORS[:red_err], COLORS[:bg_main]],
+          ['  📋 COPIAR CLAVE', :on_copy, COLORS[:orange], COLORS[:bg_main]]
         ]
         buttons.each do |text, method, fg, bg|
           btn = TkLabel.new(row) do
@@ -306,7 +307,7 @@ module Enigma
 
       def on_search
         query = @search_var.value
-        return if query == "\u{1F50D} BUSCAR..." || query.nil?
+        return if query == "🔍 BUSCAR..." || query.nil?
 
         if query.strip.empty?
           populate_list(@manager.all)
@@ -350,7 +351,7 @@ module Enigma
           )
         end
         refresh_list
-        flash("\u{2713} Guardado", COLORS[:green_ok])
+        flash("✓ Guardado", COLORS[:green_ok])
       rescue ArgumentError, Errors::VaultError => e
         flash("Error: #{e.message}", COLORS[:red_err])
       end
@@ -361,7 +362,7 @@ module Enigma
         confirmed = Tk.messageBox(
           'type' => 'yesno', 'icon' => 'warning',
           'title' => 'Confirmar',
-          'message' => "\u{BF}Eliminar '#{@selected_credential.site}'?"
+          'message' => "¿Eliminar '#{@selected_credential.site}'?"
         )
         return unless confirmed == 'yes'
 
@@ -369,7 +370,7 @@ module Enigma
         @selected_credential = Core::Vault::NullCredential.new
         clear_form
         refresh_list
-        flash("\u{2713} Eliminado", COLORS[:green_ok])
+        flash("✓ Eliminado", COLORS[:green_ok])
       rescue Errors::CredentialNotFoundError => e
         flash("Error: #{e.message}", COLORS[:red_err])
       end
@@ -379,7 +380,7 @@ module Enigma
 
         TkClipboard.clear
         TkClipboard.add(@selected_credential.password)
-        flash("\u{2713} Copiado \u{2014} limpiando en 10s", COLORS[:green_ok])
+        flash("✓ Copiado — limpiando en 10s", COLORS[:green_ok])
         @clipboard_timer&.cancel
         @clipboard_timer = TkAfter.new(10_000, 1) { TkClipboard.clear }
       end
@@ -403,7 +404,7 @@ module Enigma
                 when :medium then COLORS[:orange]
                 else COLORS[:green_ok]
                 end
-        label = { weak: 'D\u00e9bil', medium: 'Media', strong: 'Fuerte' }[level]
+        label = { weak: 'Débil', medium: 'Media', strong: 'Fuerte' }[level]
         @strength_label.configure('text' => "  #{label}", 'foreground' => color)
       end
 
@@ -413,9 +414,17 @@ module Enigma
 
       def populate_list(credentials)
         @tree.delete(*@tree.children(''))
+        batch = []
         credentials.each do |cred|
-          @tree.insert('', 'end', id: cred.id, values: [cred.site, cred.username])
+          batch << [cred.id, cred.site, cred.username]
+          if batch.size >= 100
+            batch.each { |id, site, user| @tree.insert('', 'end', id: id, values: [site, user]) }
+            batch.clear
+            Tk.update
+          end
         end
+        batch.each { |id, site, user| @tree.insert('', 'end', id: id, values: [site, user]) }
+        Tk.update
       end
 
       def clear_form

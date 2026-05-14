@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+# encoding: utf-8
 
 #
 # app/ui/panels/file_lock_panel.rb
@@ -74,8 +75,8 @@ module Enigma
         drop.pack(fill: :x, padx: 16, pady: [0, 12], ipady: 20)
 
         icon = TkLabel.new(drop) do
-          text "\u{1F4C4}"
-          font TkFont.new("#{FONT} 14")
+          text "📄"
+          font TkFont.new(family: MainWindow::FONT_EMOJI, size: 14)
           foreground COLORS[:orange]
           background COLORS[:bg_input]
         end
@@ -126,8 +127,8 @@ module Enigma
         @share_entry.pack(side: :left, fill: :x, expand: true, ipady: 4)
 
         eye = TkLabel.new(share_row) do
-          text '  \u{1F441}  '
-          font TkFont.new("#{FONT} 11")
+          text '  👁  '
+          font TkFont.new(family: MainWindow::FONT_EMOJI, size: 11)
           foreground COLORS[:fg_secondary]
           background COLORS[:bg_input]
           cursor 'hand2'
@@ -142,7 +143,7 @@ module Enigma
 
         me = self
         @lock_btn = TkButton.new(btn_frame) do
-          text '  \u{1F512} LOCK FILE \u2192 .ultra  '
+          text '  🔒 LOCK FILE → .ultra  '
           font TkFont.new("#{FONT} 10 bold")
           foreground COLORS[:bg_main]
           background COLORS[:orange]
@@ -152,7 +153,7 @@ module Enigma
         @lock_btn.pack(fill: :x, pady: [0, 8])
 
         @unlock_btn = TkButton.new(btn_frame) do
-          text '  \u{1F513} UNLOCK .ultra  '
+          text '  🔓 UNLOCK .ultra  '
           font TkFont.new("#{FONT} 10 bold")
           foreground COLORS[:orange]
           background COLORS[:bg_panel]
@@ -189,7 +190,7 @@ module Enigma
         layer1.pack(anchor: 'w', pady: [0, 2])
 
         arrow = TkLabel.new(layers) do
-          text '  \u{2193}'
+          text '  ↓'
           font TkFont.new("#{FONT} 11")
           foreground COLORS[:orange]
           background COLORS[:bg_panel]
@@ -224,7 +225,7 @@ module Enigma
         @output_path.pack(fill: :x, padx: 16, pady: [4, 16])
 
         @status_label = TkLabel.new(right) do
-          text "  \u{25CF}  LOCAL SESSION ENCRYPTED"
+          text "  ●  LOCAL SESSION ENCRYPTED"
           font TkFont.new("#{FONT} 9")
           foreground COLORS[:green_ok]
           background COLORS[:bg_panel]
@@ -328,7 +329,7 @@ module Enigma
       def poll_lock(queue)
         TkAfter.new(100, 1) do
           result = begin
-            queue.pop(nonblock: true)
+            queue.pop(true)
           rescue ThreadError
             nil
           end
@@ -345,7 +346,7 @@ module Enigma
             @output_path.delete(0, 'end')
             @output_path.insert(0, result[1].to_s)
             @status_label.configure(
-              'text' => "  \u{25CF}  OPERATION COMPLETE",
+              'text' => "  ●  OPERATION COMPLETE",
               'foreground' => COLORS[:green_ok]
             )
           when :error
@@ -358,15 +359,15 @@ module Enigma
       def set_processing(active)
         if active
           @lock_btn.configure('state' => 'disabled',
-                              'text' => '  \u{23F3} PROCESSING...  ')
+                              'text' => '  ⏳ PROCESSING...  ')
           @unlock_btn.configure('state' => 'disabled')
           @status_label.configure(
-            'text' => "  \u{25CF}  PROCESSING...",
+            'text' => "  ●  PROCESSING...",
             'foreground' => COLORS[:orange]
           )
         else
           @lock_btn.configure('state' => 'normal',
-                              'text' => '  \u{1F512} LOCK FILE \u2192 .ultra  ')
+                              'text' => '  🔒 LOCK FILE → .ultra  ')
           @unlock_btn.configure('state' => 'normal')
         end
       end

@@ -62,6 +62,17 @@ module Enigma
           nil
         end
 
+        def verify_answers(answers)
+          questions = load_questions_with_hashes or return false
+          return false unless questions.size == answers.size
+
+          questions.zip(answers).all? do |q, a|
+            q['h'] == OpenSSL::Digest::SHA256.hexdigest(a.strip.downcase)
+          end
+        rescue StandardError
+          false
+        end
+
         def reset_master_password(new_password)
           raw = File.binread(AUTH_PATH)
           return false unless raw.start_with?(MAGIC)
@@ -97,8 +108,8 @@ module Enigma
 
         def derive_verify_hash(password, salt)
           km = Core::KeyMaster.instance
-          key = km.derive_vault_key(password, salt)
-          OpenSSL::Digest::SHA256.digest(key)
+          keys = km.derive_session_keys(password, salt)
+          OpenSSL::Digest::SHA256.digest(keys[:vault_key])
         end
       end
     end

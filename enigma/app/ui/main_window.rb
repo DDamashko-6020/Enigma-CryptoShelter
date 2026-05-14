@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+# encoding: utf-8
 
 #
 # app/ui/main_window.rb
@@ -27,6 +28,12 @@ module Enigma
 
       FONT = 'Courier'
 
+      FONT_EMOJI = case RUBY_PLATFORM
+                   when /darwin/  then 'Apple Color Emoji'
+                   when /mingw|mswin|windows/i then 'Segoe UI Emoji'
+                   else 'Noto Color Emoji'
+                   end
+
       def initialize
         @root = TkRoot.new
         @root.title 'ENIGMA CRYPTOSHELTER'
@@ -51,22 +58,63 @@ module Enigma
       end
 
       def show_unlock_screen
-        @screen = UnlockScreen.new(@root, method(:on_vault_ready))
+        @screen = UnlockScreen.new(@root, method(:on_vault_ready), method(:on_recovery))
+      end
+
+      def show_recovery_screen
+        @screen&.hide
+        @screen = RecoveryScreen.new(@root, method(:on_recovery_done), method(:on_recovery_back))
+      end
+
+      def on_recovery
+        show_recovery_screen
+      end
+
+      def on_recovery_back
+        @screen&.hide
+        Tk.update
+        show_unlock_screen
+      end
+
+      def on_recovery_done
+        @screen&.hide
+        Tk.update
+        show_create_screen
       end
 
       def on_vault_ready(session)
         @session = session
         @screen&.hide
+        Tk.update
         build_main_app
+      rescue => e
+        warn "[on_vault_ready] #{e.class}: #{e.message}"
+        warn e.backtrace.first(3).join("\n")
       end
 
       def build_main_app
         @root.geometry('1200x800+50+50')
         @root.resizable(false, false)
+        @panels = {}
+        @tab_order = {
+          'vault'      => 'Vault',
+          'cipher_lab' => 'Cipher Lab',
+          'file_lock'  => 'File Lock'
+        }.freeze
         build_content_area
         build_top_bar
         build_status_bar
         switch_tab('vault')
+        Tk.update
+      rescue => e
+        warn "[build_main_app] #{e.class}: #{e.message}"
+        TkLabel.new(@root) do
+          text "Error: #{e.message}"
+          foreground '#FF0000'
+          background '#000000'
+          font TkFont.new('Courier 12')
+        end.pack
+        Tk.update
       end
 
       def build_top_bar
@@ -123,7 +171,7 @@ module Enigma
         end
 
         @status_icon = TkLabel.new(nav) do
-          text "  \u{25CF} VAULT OPEN"
+          text "  ● VAULT OPEN"
           font TkFont.new("#{FONT} 9 bold")
           foreground COLORS[:green_ok]
           background COLORS[:bg_main]
@@ -134,28 +182,6 @@ module Enigma
       def build_content_area
         @content = TkFrame.new(@root) { background COLORS[:bg_main] }
         @content.pack(side: :top, fill: :both, expand: true)
-
-        @panels = {}
-        @tab_order = {}
-
-        @panels['vault'] = VaultPanel.new(@content, @session)
-        @tab_order['vault'] = 'Vault'
-
-        begin
-          @panels['cipher_lab'] = CipherPanel.new(@content)
-          @tab_order['cipher_lab'] = 'Cipher Lab'
-        rescue StandardError => e
-          warn "Cipher Lab no disponible: #{e.message}"
-        end
-
-        begin
-          @panels['file_lock'] = FileLockPanel.new(@content, @session)
-          @tab_order['file_lock'] = 'File Lock'
-        rescue StandardError => e
-          warn "File Lock no disponible: #{e.message}"
-        end
-
-        @panels.each_value(&:hide)
       end
 
       def build_status_bar
@@ -175,7 +201,7 @@ module Enigma
         left.pack(side: :left, fill: :y, padx: [20, 0])
 
         TkLabel.new(left) do
-          text "\u{25CF} OFFLINE MODE | AES-256-GCM ACTIVE"
+          text "● OFFLINE MODE | AES-256-GCM ACTIVE"
           font TkFont.new("#{FONT} 9")
           foreground COLORS[:fg_secondary]
           background COLORS[:bg_main]
@@ -209,6 +235,7 @@ module Enigma
       end
 
       def switch_tab(key)
+        ensure_panel_created(key)
         return unless @panels.key?(key)
 
         @current_tab = key
@@ -223,12 +250,29 @@ module Enigma
         @panels.each_value(&:hide)
         @panels[key].show
       end
+
+      def ensure_panel_created(key)
+        return if @panels.key?(key)
+
+        panel = case key
+                when 'vault'
+                  VaultPanel.new(@content, @session)
+                when 'cipher_lab'
+                  CipherPanel.new(@content)
+                when 'file_lock'
+                  FileLockPanel.new(@content, @session)
+                end
+        @panels[key] = panel if panel
+      rescue StandardError => e
+        warn "Panel #{key} no disponible: #{e.message}"
+      end
     end
   end
 end
 
 require_relative 'screens/create_screen'
 require_relative 'screens/unlock_screen'
+require_relative 'screens/recovery_screen'
 require_relative 'panels/vault_panel'
 require_relative 'panels/cipher_panel'
 require_relative 'panels/file_lock_panel'

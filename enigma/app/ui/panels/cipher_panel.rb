@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+# encoding: utf-8
 
 #
 # app/ui/panels/cipher_panel.rb
@@ -94,8 +95,8 @@ module Enigma
         @key_entry.pack(side: :left, fill: :x, expand: true, ipady: 4)
 
         eye = TkLabel.new(key_row) do
-          text '  \u{1F441}  '
-          font TkFont.new("#{FONT} 11")
+          text '  👁  '
+          font TkFont.new(family: MainWindow::FONT_EMOJI, size: 11)
           foreground COLORS[:fg_secondary]
           background COLORS[:bg_input]
           cursor 'hand2'
@@ -134,7 +135,7 @@ module Enigma
         status_card.pack(fill: :x, padx: 16, pady: [0, 16])
 
         @status_label = TkLabel.new(status_card) do
-          text "  \u{25CF}  SESSION ENCRYPTED"
+          text "  ●  SESSION ENCRYPTED"
           font TkFont.new("#{FONT} 9")
           foreground COLORS[:green_ok]
           background COLORS[:bg_panel]
@@ -200,7 +201,7 @@ module Enigma
         @cipher_text.pack(fill: :x, padx: 16, pady: [4, 16])
 
         copy_btn = TkLabel.new(right) do
-          text '  \u{2E09} COPIAR'
+          text '  ⸉ COPIAR'
           font TkFont.new("#{FONT} 9 bold")
           foreground COLORS[:orange]
           background COLORS[:bg_panel]
@@ -227,7 +228,7 @@ module Enigma
 
         result = Core::Facades::CipherFacade.encrypt(algo, key, plain)
         set_ciphertext(result)
-        @status_label.configure('text' => "  \u{25CF}  ENCRYPTED (#{algo})",
+        @status_label.configure('text' => "  ●  ENCRYPTED (#{algo})",
                                 'foreground' => COLORS[:green_ok])
       rescue Errors::CipherError => e
         Tk.messageBox('type' => 'ok', 'icon' => 'error',
@@ -249,7 +250,7 @@ module Enigma
         @plain_text.delete('1.0', 'end')
         @plain_text.insert('end', result)
         update_char_count
-        @status_label.configure('text' => "  \u{25CF}  DECRYPTED (#{algo})",
+        @status_label.configure('text' => "  ●  DECRYPTED (#{algo})",
                                 'foreground' => COLORS[:green_ok])
       rescue Errors::CipherError => e
         Tk.messageBox('type' => 'ok', 'icon' => 'error',

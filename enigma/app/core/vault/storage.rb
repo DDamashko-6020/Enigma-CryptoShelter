@@ -31,9 +31,12 @@ module Enigma
           raw[MAGIC.bytesize, 32]
         end
 
+        SALT_LENGTH = 32
+
         def initialize(path, cipher)
-          @path = path
+          @path   = path
           @cipher = cipher
+          @salt   = nil
         end
 
         def exists?
@@ -41,9 +44,10 @@ module Enigma
         end
 
         def create_new!(salt)
+          @salt = salt
           FileUtils.mkdir_p(VAULT_DIR, mode: DIR_MODE)
           payload = @cipher.encrypt(JSON.generate({ credentials: [] }))
-          File.binwrite(@path, MAGIC + salt + payload)
+          File.binwrite(@path, MAGIC + @salt + payload)
           File.chmod(FILE_MODE, @path)
         end
 
@@ -51,7 +55,8 @@ module Enigma
           raw = File.binread(@path)
           raise Errors::CorruptedDataError unless raw.start_with?(MAGIC)
 
-          encrypted = raw[(MAGIC.bytesize + 32)..]
+          @salt = raw[MAGIC.bytesize, SALT_LENGTH]
+          encrypted = raw[(MAGIC.bytesize + SALT_LENGTH)..]
           json = @cipher.decrypt(encrypted)
           JSON.parse(json)['credentials'].map { |h| Credential.from_h(h) }
         rescue OpenSSL::Cipher::CipherError => e
@@ -59,11 +64,19 @@ module Enigma
         end
 
         def save(credentials)
-          raw = File.binread(@path)
-          salt = raw[MAGIC.bytesize, 32]
+          ensure_salt_loaded!
           json = JSON.generate({ credentials: credentials.map(&:to_h) })
-          File.binwrite(@path, MAGIC + salt + @cipher.encrypt(json))
+          File.binwrite(@path, MAGIC + @salt + @cipher.encrypt(json))
           File.chmod(FILE_MODE, @path)
+        end
+
+        private
+
+        def ensure_salt_loaded!
+          return if @salt
+
+          raw   = File.binread(@path)
+          @salt = raw[MAGIC.bytesize, SALT_LENGTH]
         end
       end
     end

@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+# encoding: utf-8
 
 #
 # app/ui/screens/unlock_screen.rb
@@ -13,9 +14,10 @@ module Enigma
       COLORS = MainWindow::COLORS
       FONT   = MainWindow::FONT
 
-      def initialize(root, on_success)
-        @root       = root
-        @on_success = on_success
+      def initialize(root, on_success, on_recovery = nil)
+        @root        = root
+        @on_success  = on_success
+        @on_recovery = on_recovery
         build
       end
 
@@ -26,14 +28,14 @@ module Enigma
       private
 
       def build
-        @root.geometry('420x320+200+150')
+        @root.geometry('420x360+200+150')
         @root.resizable(false, false)
 
         @frame = TkFrame.new(@root) { background COLORS[:bg_main] }
         @frame.pack(expand: true)
 
         title = TkLabel.new(@frame) do
-          text "\u{1F512}  ENIGMA CRYPTOSHELTER"
+          text "🔒  ENIGMA CRYPTOSHELTER"
           font TkFont.new("#{FONT} 14 bold")
           foreground COLORS[:orange]
           background COLORS[:bg_main]
@@ -77,8 +79,8 @@ module Enigma
         @pw_entry.focus
 
         toggle_btn = TkLabel.new(pw_row) do
-          text '  \u{1F441}  '
-          font TkFont.new("#{FONT} 11")
+          text '  👁  '
+          font TkFont.new(family: MainWindow::FONT_EMOJI, size: 11)
           foreground COLORS[:fg_secondary]
           background COLORS[:bg_input]
           cursor 'hand2'
@@ -95,7 +97,7 @@ module Enigma
         @error_label.pack(anchor: 'w', padx: 40, pady: [4, 0])
 
         btn_frame = TkFrame.new(@frame) { background COLORS[:bg_main] }
-        btn_frame.pack(pady: [16, 0])
+        btn_frame.pack(pady: [12, 0])
 
         @unlock_btn = TkButton.new(btn_frame) do
           text '  ABRIR VAULT  '
@@ -108,8 +110,17 @@ module Enigma
 
         screen = self
         @unlock_btn.command(proc { screen.send(:on_unlock) })
-
         @pw_entry.bind('Return') { on_unlock }
+
+        recovery_link = TkLabel.new(@frame) do
+          text '  ¿Olvidaste tu clave? Recupérala aquí  '
+          font TkFont.new("#{FONT} 9")
+          foreground COLORS[:fg_secondary]
+          background COLORS[:bg_main]
+          cursor 'hand2'
+        end
+        recovery_link.pack(pady: [12, 0])
+        recovery_link.bind('Button-1') { @on_recovery&.call }
       end
 
       def on_unlock
@@ -123,45 +134,15 @@ module Enigma
         @error_label.configure('text' => '')
         Tk.update
 
-        queue = Queue.new
-        Thread.new do
-          begin
-            session = Core::Facades::VaultFacade.open(pw)
-            queue << [:ok, session]
-          rescue Errors::AuthTagError
-            queue << [:auth_error]
-          rescue StandardError => e
-            queue << [:error, e.message]
-          end
-        end
-
-        poll_unlock(queue)
-      end
-
-      def poll_unlock(queue)
-        TkAfter.new(100, 1) do
-          result = begin
-            queue.pop(nonblock: true)
-          rescue ThreadError
-            nil
-          end
-
-          if result.nil?
-            poll_unlock(queue)
-            return
-          end
-
-          case result[0]
-          when :ok
-            @on_success.call(result[1])
-          when :auth_error
-            @unlock_btn.configure('state' => 'normal', 'text' => '  ABRIR VAULT  ')
-            @error_label.configure('text' => '  Clave incorrecta')
-          when :error
-            @unlock_btn.configure('state' => 'normal', 'text' => '  ABRIR VAULT  ')
-            @error_label.configure('text' => "  Error: #{result[1]}")
-          end
-        end
+        session = Core::Facades::VaultFacade.open(pw)
+        @on_success.call(session)
+      rescue Errors::AuthTagError
+        @error_label.configure('text' => '  Clave incorrecta')
+        @unlock_btn.configure('state' => 'normal', 'text' => '  ABRIR VAULT  ')
+        @pw_entry.delete(0, 'end')
+      rescue StandardError => e
+        @error_label.configure('text' => "  Error: #{e.message}")
+        @unlock_btn.configure('state' => 'normal', 'text' => '  ABRIR VAULT  ')
       end
 
       def toggle_password

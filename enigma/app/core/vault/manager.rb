@@ -18,14 +18,18 @@ module Enigma
         UNLOCKED = :unlocked
 
         def initialize(storage)
-          @storage     = storage
-          @credentials = []
-          @state       = LOCKED
+          @storage      = storage
+          @credentials  = []
+          @state        = LOCKED
+          @dirty        = false
+          @batching     = false
+          @site_index   = {}
         end
 
         def unlock
           @credentials = @storage.load
           @state       = UNLOCKED
+          rebuild_index!
         rescue Errors::AuthTagError
           @state = LOCKED
           raise
@@ -34,6 +38,7 @@ module Enigma
         def lock
           @credentials = []
           @state       = LOCKED
+          @site_index  = {}
         end
 
         def unlocked?
@@ -45,6 +50,7 @@ module Enigma
           cred = Credential.new(site: site, username: username,
                                 password: password, notes: notes)
           @credentials << cred
+          add_to_index!(cred)
           persist!
           cred
         end
@@ -56,16 +62,21 @@ module Enigma
 
         def find(query)
           require_unlocked!
+          return @credentials.dup if query.to_s.strip.empty?
+
           q = query.to_s.downcase
-          @credentials.select do |c|
+          exact = @site_index[q] || []
+          partial = @credentials.select do |c|
             c.site.downcase.include?(q) || c.username.downcase.include?(q)
           end
+          partial.uniq(&:id)
         end
 
         def update(id, **fields)
           require_unlocked!
           idx = find_index!(id)
           old = @credentials[idx]
+          remove_from_index!(old)
           updated = Credential.new(
             id: old.id, created_at: old.created_at,
             updated_at: Time.now.iso8601,
@@ -75,19 +86,32 @@ module Enigma
             notes:    fields.fetch(:notes, old.notes)
           )
           @credentials[idx] = updated
+          add_to_index!(updated)
           persist!
           updated
         end
 
         def delete(id)
           require_unlocked!
-          find_index!(id)
+          idx = find_index!(id)
+          removed = @credentials[idx]
+          remove_from_index!(removed)
           @credentials.reject! { |c| c.id == id }
           persist!
         end
 
         def count
           @credentials.size
+        end
+
+        # Batch multiple operations, persist once at the end
+        def batch
+          @batching = true
+          yield
+        ensure
+          @batching = false
+          persist! if @dirty
+          @dirty = false
         end
 
         private
@@ -104,7 +128,31 @@ module Enigma
         end
 
         def persist!
-          @storage.save(@credentials)
+          if @batching
+            @dirty = true
+          else
+            @storage.save(@credentials)
+            @dirty = false
+          end
+        end
+
+        def rebuild_index!
+          @site_index = @credentials.each_with_object({}) do |c, idx|
+            key = c.site.downcase
+            idx[key] ||= []
+            idx[key] << c
+          end
+        end
+
+        def add_to_index!(credential)
+          key = credential.site.downcase
+          @site_index[key] ||= []
+          @site_index[key] << credential
+        end
+
+        def remove_from_index!(credential)
+          key = credential.site.downcase
+          @site_index[key]&.reject! { |c| c.id == credential.id }
         end
       end
     end

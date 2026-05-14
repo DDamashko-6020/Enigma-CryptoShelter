@@ -2,7 +2,12 @@
 
 #
 # app/core/key_master.rb
-# Responsibility: PBKDF2 key derivation (Singleton).
+# Single-pass key derivation following KeePass architecture.
+# ONE PBKDF2 call → master_key → HKDF expansion → purpose keys.
+# master_key never stored or returned.
+#
+# Pattern: Singleton
+# Pattern: Factory Method (derive_* methods)
 #
 
 require 'openssl'
@@ -11,32 +16,31 @@ require 'singleton'
 
 module Enigma
   module Core
-    # Pattern: Singleton
     class KeyMaster
       include Singleton
 
-      ITERATIONS    = 600_000
-      KEY_LENGTH    = 32
-      SALT_LENGTH   = 32
-      DIGEST        = 'SHA256'
-      VAULT_SALT    = 'enigma_vault_v1'
-      FILELOCK_SALT = 'enigma_filelock_v1'
+      ITERATIONS  = ENV.fetch('ENIGMA_PBKDF2_ITER', '600000').to_i
+      KEY_LENGTH  = 32
+      SALT_LENGTH = 32
+      DIGEST      = 'SHA256'
 
-      # @param password [String] master password
-      # @param salt [String] binary salt
-      # @return [String] 32-byte vault key
-      def derive_vault_key(password, salt)
-        pbkdf2(password, salt + VAULT_SALT)
+      VAULT_INFO    = 'enigma_vault_v1'
+      FILELOCK_INFO = 'enigma_filelock_v1'
+
+      def derive_session_keys(master_password, salt)
+        master_key = pbkdf2(master_password, salt)
+
+        result = {
+          vault_key:    hkdf_expand(master_key, VAULT_INFO),
+          filelock_key: hkdf_expand(master_key, FILELOCK_INFO)
+        }
+
+        master_key.replace("\x00" * KEY_LENGTH)
+        master_key = nil
+
+        result
       end
 
-      # @param password [String] master password
-      # @param salt [String] binary salt
-      # @return [String] 32-byte filelock key
-      def derive_filelock_key(password, salt)
-        pbkdf2(password, salt + FILELOCK_SALT)
-      end
-
-      # @return [String] 32 random bytes
       def generate_salt
         SecureRandom.random_bytes(SALT_LENGTH)
       end
@@ -47,6 +51,10 @@ module Enigma
         OpenSSL::PKCS5.pbkdf2_hmac(
           password, salt, ITERATIONS, KEY_LENGTH, DIGEST
         )
+      end
+
+      def hkdf_expand(master_key, info)
+        OpenSSL::HMAC.digest(DIGEST, master_key, info + "\x01")[0, KEY_LENGTH]
       end
     end
   end

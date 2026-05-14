@@ -30,6 +30,9 @@ require_relative 'vault/manager'
 require_relative 'file_lock/locker'
 require_relative 'file_lock/unlocker'
 
+# --- Auth (security questions, password recovery) ---
+require_relative 'auth/auth_config'
+
 # --- Facades (bridges core → UI) ---
 require_relative 'facades/vault_facade'
 require_relative 'facades/cipher_facade'

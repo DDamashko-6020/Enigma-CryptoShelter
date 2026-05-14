@@ -4,7 +4,7 @@ RSpec.describe Enigma::Core::Vault::Manager do
   let(:tmp_path) { File.join('/tmp', "enigma_vault_test_#{Time.now.to_i}_#{rand(9999)}.vault") }
   let(:password) { 'master-password' }
   let(:salt) { SecureRandom.random_bytes(32) }
-  let(:vault_key) { Enigma::Core::KeyMaster.instance.derive_vault_key(password, salt) }
+  let(:vault_key) { Enigma::Core::KeyMaster.instance.derive_session_keys(password, salt)[:vault_key] }
   let(:cipher) { Enigma::Core::Cipher::AesGcm.new(vault_key) }
   let(:storage) { Enigma::Core::Vault::Storage.new(tmp_path, cipher) }
   subject(:manager) { described_class.new(storage) }
