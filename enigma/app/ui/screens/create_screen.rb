@@ -277,8 +277,8 @@ module Enigma
 
         questions = []
         @q_vars.each_with_index do |qv, i|
-          q = qv.value.strip
-          a = @a_entries[i].value.strip
+          q = qv.value.strip.force_encoding('UTF-8')
+          a = @a_entries[i].value.strip.force_encoding('UTF-8')
           if q.empty? || a.empty?
             @error_label.configure('text' => "  Completa pregunta #{i + 1} y su respuesta")
             return

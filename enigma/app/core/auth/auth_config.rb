@@ -29,7 +29,7 @@ module Enigma
           salt = SecureRandom.random_bytes(SALT_SIZE)
           verify_hash = derive_verify_hash(master_password, salt)
 
-          payload = JSON.generate('questions' => questions)
+          payload = JSON.generate('questions' => questions).force_encoding('ASCII-8BIT')
           FileUtils.mkdir_p(AUTH_DIR, mode: DIR_MODE)
           File.binwrite(AUTH_PATH, MAGIC + salt + verify_hash + payload)
           File.chmod(FILE_MODE, AUTH_PATH)
