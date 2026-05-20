@@ -57,9 +57,15 @@ module Enigma
       end
 
       def self.ensure_complexity!(pass, symbols)
-        pass[0] = UPPER[SecureRandom.random_number(UPPER.size)]
-        pass[1] = DIGITS[SecureRandom.random_number(DIGITS.size)]
-        pass[2] = SYMBOLS[SecureRandom.random_number(SYMBOLS.size)] if symbols
+        positions = (0...pass.size).to_a.shuffle
+        pos = positions.pop
+        pass[pos] = UPPER[SecureRandom.random_number(UPPER.size)] unless pass.join.match?(/[A-Z]/)
+        pos = positions.pop
+        pass[pos] = DIGITS[SecureRandom.random_number(DIGITS.size)] unless pass.join.match?(/[0-9]/)
+        return unless symbols && !pass.join.match?(/[^A-Za-z0-9]/)
+
+        pos = positions.pop
+        pass[pos] = SYMBOLS[SecureRandom.random_number(SYMBOLS.size)]
       end
 
       private_class_method :ensure_complexity!

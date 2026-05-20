@@ -9,12 +9,8 @@ module Enigma
   module Core
     module Facades
       class FileLockFacade
-        def initialize
-          @storage = Vault::Storage.new(Vault::Storage::VAULT_PATH, nil)
-        end
-
         def vault_exists?
-          @storage.exists?
+          Vault::Storage.vault_exists?
         end
 
         def lock(file_path, filelock_key, share_key)

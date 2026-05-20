@@ -1,5 +1,4 @@
 # frozen_string_literal: true
-# encoding: utf-8
 
 #
 # app/ui/screens/unlock_screen.rb
@@ -36,7 +35,7 @@ module Enigma
         @frame.pack(expand: true)
 
         title = TkLabel.new(@frame) do
-          text "🔒  ENIGMA CRYPTOSHELTER"
+          text '🔒  ENIGMA CRYPTOSHELTER'
           font TkFont.new("#{FONT} 14 bold")
           foreground COLORS[:orange]
           background COLORS[:bg_main]
@@ -138,14 +137,12 @@ module Enigma
         queue = Queue.new
 
         Thread.new do
-          begin
-            session = Core::Facades::VaultFacade.open(pw)
-            queue << [:ok, session]
-          rescue Errors::AuthTagError
-            queue << [:auth_error]
-          rescue => e
-            queue << [:error, e.message]
-          end
+          session = Core::Facades::VaultFacade.open(pw)
+          queue << [:ok, session]
+        rescue Errors::AuthTagError
+          queue << [:auth_error]
+        rescue StandardError => e
+          queue << [:error, e.message]
         end
 
         poll_unlock(queue)

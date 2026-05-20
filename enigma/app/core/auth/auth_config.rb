@@ -51,8 +51,7 @@ module Enigma
 
           payload = JSON.generate(payload_data).force_encoding('ASCII-8BIT')
           FileUtils.mkdir_p(AUTH_DIR, mode: DIR_MODE)
-          File.binwrite(AUTH_PATH, MAGIC + salt + verify_hash + payload)
-          File.chmod(FILE_MODE, AUTH_PATH)
+          File.open(AUTH_PATH, 'wb', perm: FILE_MODE) { |f| f.write(MAGIC + salt + verify_hash + payload) }
         end
 
         def verify(master_password)
@@ -103,8 +102,7 @@ module Enigma
           new_hash = derive_verify_hash(new_password, new_salt)
 
           FileUtils.mkdir_p(AUTH_DIR, mode: DIR_MODE)
-          File.binwrite(AUTH_PATH, MAGIC + new_salt + new_hash + json_str)
-          File.chmod(FILE_MODE, AUTH_PATH)
+          File.open(AUTH_PATH, 'wb', perm: FILE_MODE) { |f| f.write(MAGIC + new_salt + new_hash + json_str) }
           true
         rescue StandardError
           false
@@ -133,7 +131,7 @@ module Enigma
           decrypted = cipher.update(encrypted) + cipher.final
 
           {
-            vault_key:    decrypted[0, 32],
+            vault_key: decrypted[0, 32],
             filelock_key: decrypted[32, 32]
           }
         rescue OpenSSL::Cipher::CipherError, ArgumentError, TypeError

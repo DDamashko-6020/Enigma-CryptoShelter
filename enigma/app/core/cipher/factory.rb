@@ -15,18 +15,20 @@ module Enigma
     module Cipher
       class Factory
         REGISTRY = {
-          'AES-256-GCM'       => AesGcm,
+          'AES-256-GCM' => AesGcm,
           'ChaCha20-Poly1305' => Chacha20,
-          'XOR'               => Xor,
-          "C\u00e9sar"        => Caesar
+          'XOR' => Xor,
+          "C\u00e9sar" => Caesar
         }.freeze
 
         BUILD_MAP = REGISTRY.transform_keys(&:downcase).freeze
 
         def self.build(algorithm, key)
           klass = REGISTRY[algorithm] || BUILD_MAP[algorithm.downcase]
-          raise Errors::InvalidKeyError,
-                "Algoritmo desconocido: #{algorithm}" unless klass
+          unless klass
+            raise Errors::InvalidKeyError,
+                  "Algoritmo desconocido: #{algorithm}"
+          end
 
           klass.new(key)
         end

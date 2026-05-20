@@ -9,25 +9,25 @@ module Enigma
   module Errors
     class CipherError < StandardError
       def initialize(msg = 'Error de cifrado')
-        super(msg)
+        super
       end
     end
 
     class AuthTagError < CipherError
       def initialize(msg = 'Auth tag inv\u{e1}lido \u{2014} clave incorrecta o archivo manipulado')
-        super(msg)
+        super
       end
     end
 
     class InvalidKeyError < CipherError
       def initialize(msg = 'Clave inv\u{e1}lida')
-        super(msg)
+        super
       end
     end
 
     class CorruptedDataError < CipherError
       def initialize(msg = 'Datos corruptos o formato inv\u{e1}lido')
-        super(msg)
+        super
       end
     end
   end

@@ -20,6 +20,7 @@ require_relative 'app/core/core'
 require_relative 'utils/password_generator'
 require_relative 'utils/validator'
 require_relative 'utils/file_handler'
+require_relative 'app/ui/theme'
 require_relative 'app/ui/main_window'
 
 Enigma::UI::MainWindow.new.run

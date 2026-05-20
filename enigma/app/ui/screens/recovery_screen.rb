@@ -1,5 +1,4 @@
 # frozen_string_literal: true
-# encoding: utf-8
 
 #
 # app/ui/screens/recovery_screen.rb
@@ -112,22 +111,25 @@ module Enigma
         end
         @error_label.pack(anchor: 'w', padx: 30, pady: [4, 0])
 
-        if @on_back
-          TkLabel.new(card) do
-            text '  ← Volver a la pantalla de inicio'
-            font TkFont.new("#{FONT} 9")
-            foreground COLORS[:fg_secondary]
-            background COLORS[:bg_panel]
-            cursor 'hand2'
-          end.tap do |l|
-            l.pack(pady: [4, 12])
-            l.bind('Button-1') { @frame.pack_forget; @on_back.call }
+        return unless @on_back
+
+        TkLabel.new(card) do
+          text '  ← Volver a la pantalla de inicio'
+          font TkFont.new("#{FONT} 9")
+          foreground COLORS[:fg_secondary]
+          background COLORS[:bg_panel]
+          cursor 'hand2'
+        end.tap do |l|
+          l.pack(pady: [4, 12])
+          l.bind('Button-1') do
+            @frame.pack_forget
+            @on_back.call
           end
         end
       end
 
       def on_verify
-        answers = @answer_entries.map { |e| e.value }
+        answers = @answer_entries.map(&:value)
 
         if answers.any?(&:empty?)
           @error_label.configure('text' => 'Responde todas las preguntas')
@@ -141,22 +143,20 @@ module Enigma
         queue = Queue.new
 
         Thread.new do
-          begin
-            unless Core::Vault::Storage.verify_answers(answers)
-              queue << [:wrong]
-              next
-            end
-
-            recovered = Core::Vault::Storage.read_recovery_data(nil, answers)
-            unless recovered
-              queue << [:recovery_failed]
-              next
-            end
-
-            queue << [:ok, recovered]
-          rescue => e
-            queue << [:error, e.message]
+          unless Core::Vault::Storage.verify_answers(answers)
+            queue << [:wrong]
+            next
           end
+
+          recovered = Core::Vault::Storage.read_recovery_data(nil, answers)
+          unless recovered
+            queue << [:recovery_failed]
+            next
+          end
+
+          queue << [:ok, recovered]
+        rescue StandardError => e
+          queue << [:error, e.message]
         end
 
         poll_verify(queue)

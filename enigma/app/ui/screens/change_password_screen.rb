@@ -1,5 +1,4 @@
 # frozen_string_literal: true
-# encoding: utf-8
 
 #
 # app/ui/screens/change_password_screen.rb
@@ -183,18 +182,16 @@ module Enigma
           queue = Queue.new
 
           Thread.new do
-            begin
-              new_session = Core::Facades::VaultFacade.change_password(
-                @current_keys, new_pass, confirm
-              )
-              queue << [:ok, new_session]
-            rescue Errors::AuthTagError
-              queue << [:auth_error]
-            rescue Errors::VaultError, Errors::InvalidKeyError => e
-              queue << [:validation_error, e.message]
-            rescue => e
-              queue << [:error, e.message]
-            end
+            new_session = Core::Facades::VaultFacade.change_password(
+              @current_keys, new_pass, confirm
+            )
+            queue << [:ok, new_session]
+          rescue Errors::AuthTagError
+            queue << [:auth_error]
+          rescue Errors::VaultError, Errors::InvalidKeyError => e
+            queue << [:validation_error, e.message]
+          rescue StandardError => e
+            queue << [:error, e.message]
           end
 
           poll_change(queue)
@@ -245,7 +242,7 @@ module Enigma
             cursor 'hand2'
             width 3
           end
-          btn.command = -> {
+          btn.command = lambda {
             show = !show
             entry.configure(show: show ? '' : '*')
             btn.configure(foreground: show ? COLORS[:orange] : COLORS[:fg_secondary])

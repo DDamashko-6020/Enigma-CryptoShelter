@@ -1,5 +1,4 @@
 # frozen_string_literal: true
-# encoding: utf-8
 
 #
 # app/ui/main_window.rb
@@ -13,23 +12,11 @@ require 'ostruct'
 module Enigma
   module UI
     class MainWindow
-      COLORS = {
-        bg_main:      '#0D0D0D',
-        bg_panel:     '#1A1A1A',
-        bg_input:     '#111111',
-        fg_primary:   '#E0E0E0',
-        fg_secondary: '#666666',
-        orange:       '#FF6B00',
-        orange_dim:   '#CC4400',
-        green_ok:     '#00CC66',
-        red_err:      '#CC2200',
-        border:       '#2A2A2A'
-      }.freeze
-
-      FONT = 'Courier'
+      COLORS = Theme::COLORS
+      FONT   = Theme::FONT
 
       FONT_EMOJI = case RUBY_PLATFORM
-                   when /darwin/  then 'Apple Color Emoji'
+                   when /darwin/ then 'Apple Color Emoji'
                    when /mingw|mswin|windows/i then 'Segoe UI Emoji'
                    else 'Noto Color Emoji'
                    end
@@ -68,8 +55,8 @@ module Enigma
         @screen_frame.pack(fill: :both, expand: true)
         @screen = Screens::ChangePasswordScreen.new(
           @screen_frame,
-          on_back:      -> { show_unlock_screen },
-          on_success:   method(:on_change_password_success),
+          on_back: -> { show_unlock_screen },
+          on_success: method(:on_change_password_success),
           current_keys: current_keys
         )
         Tk.update
@@ -82,7 +69,7 @@ module Enigma
         @screen = RecoveryScreen.new(
           @screen_frame,
           on_success: method(:on_recovery_success),
-          on_back:    -> { show_unlock_screen }
+          on_back: -> { show_unlock_screen }
         )
         Tk.update
       end
@@ -107,7 +94,7 @@ module Enigma
         @screen&.hide
         Tk.update
         build_main_app
-      rescue => e
+      rescue StandardError => e
         warn "[on_vault_ready] #{e.class}: #{e.message}"
         warn e.backtrace.first(3).join("\n")
       end
@@ -129,7 +116,7 @@ module Enigma
         Panels::UserPanel.new(
           @root,
           session: @session,
-          on_session_update: ->(new_session) {
+          on_session_update: lambda { |new_session|
             @session = new_session
             update_vault_panel_session(new_session)
           }
@@ -147,16 +134,16 @@ module Enigma
         @root.resizable(false, false)
         @panels = {}
         @tab_order = {
-          'vault'      => 'Vault',
+          'vault' => 'Vault',
           'cipher_lab' => 'Cipher Lab',
-          'file_lock'  => 'File Lock'
+          'file_lock' => 'File Lock'
         }.freeze
         build_content_area
         build_top_bar
         build_status_bar
         switch_tab('vault')
         Tk.update
-      rescue => e
+      rescue StandardError => e
         warn "[build_main_app] #{e.class}: #{e.message}"
         TkLabel.new(@root) do
           text "Error: #{e.message}"
@@ -223,7 +210,7 @@ module Enigma
         end
 
         @user_btn = TkLabel.new(nav) do
-          text "  👤  "
+          text '  👤  '
           font TkFont.new(family: FONT_EMOJI, size: 12)
           foreground COLORS[:fg_secondary]
           background COLORS[:bg_main]
@@ -243,7 +230,7 @@ module Enigma
         @logout_btn.bind('Button-1') { on_logout }
 
         @status_icon = TkLabel.new(nav) do
-          text "  ● VAULT OPEN"
+          text '  ● VAULT OPEN'
           font TkFont.new("#{FONT} 9 bold")
           foreground COLORS[:green_ok]
           background COLORS[:bg_main]
@@ -274,7 +261,7 @@ module Enigma
         left.pack(side: :left, fill: :y, padx: [20, 0])
 
         TkLabel.new(left) do
-          text "● OFFLINE MODE | AES-256-GCM ACTIVE"
+          text '● OFFLINE MODE | AES-256-GCM ACTIVE'
           font TkFont.new("#{FONT} 9")
           foreground COLORS[:fg_secondary]
           background COLORS[:bg_main]
@@ -311,6 +298,7 @@ module Enigma
         ensure_panel_created(key)
         return unless @panels.key?(key)
 
+        @panels[@current_tab]&.hide if @current_tab && @current_tab != key
         @current_tab = key
         @tab_underlines.each do |k, underline|
           color = k == key ? COLORS[:orange] : COLORS[:bg_main]
@@ -320,7 +308,6 @@ module Enigma
           color = k == key ? COLORS[:fg_primary] : COLORS[:fg_secondary]
           btn.configure('foreground' => color)
         end
-        @panels.each_value(&:hide)
         @panels[key].show
       end
 

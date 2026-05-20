@@ -33,14 +33,18 @@ module Enigma
 
         def self.change_password(current_keys, new_password, confirm_password,
                                  security_data: nil)
-          raise Errors::VaultError,
-                'Las claves no coinciden' unless new_password == confirm_password
-          raise Errors::InvalidKeyError,
-                'Mínimo 8 caracteres' if new_password.length < 8
+          unless new_password == confirm_password
+            raise Errors::VaultError,
+                  'Las claves no coinciden'
+          end
+          if new_password.length < 8
+            raise Errors::InvalidKeyError,
+                  'Mínimo 8 caracteres'
+          end
 
           current_cipher = Cipher::AesGcm.new(current_keys[:vault_key])
           new_keys = Vault::Storage.reencrypt!(current_cipher, new_password,
-                                                security_data)
+                                               security_data)
 
           cipher  = Cipher::AesGcm.new(new_keys[:vault_key])
           storage = Vault::Storage.new(Vault::Storage::VAULT_PATH, cipher)

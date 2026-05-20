@@ -9,19 +9,19 @@ module Enigma
   module Errors
     class VaultError < StandardError
       def initialize(msg = 'Error del vault')
-        super(msg)
+        super
       end
     end
 
     class VaultLockedError < VaultError
       def initialize(msg = 'El vault est\u{e1} bloqueado')
-        super(msg)
+        super
       end
     end
 
     class VaultNotFoundError < VaultError
       def initialize(msg = 'No existe un vault en este dispositivo')
-        super(msg)
+        super
       end
     end
 

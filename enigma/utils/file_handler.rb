@@ -33,7 +33,7 @@ module Enigma
 
       # @param path [String] file path
       def self.delete(path)
-        File.delete(path) if File.exist?(path)
+        FileUtils.rm_f(path)
       end
     end
   end

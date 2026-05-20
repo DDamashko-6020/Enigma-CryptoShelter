@@ -1,5 +1,4 @@
 # frozen_string_literal: true
-# encoding: utf-8
 
 #
 # app/ui/panels/file_lock_panel.rb
@@ -75,7 +74,7 @@ module Enigma
         drop.pack(fill: :x, padx: 16, pady: [0, 12], ipady: 20)
 
         icon = TkLabel.new(drop) do
-          text "📄"
+          text '📄'
           font TkFont.new(family: MainWindow::FONT_EMOJI, size: 14)
           foreground COLORS[:orange]
           background COLORS[:bg_input]
@@ -225,7 +224,7 @@ module Enigma
         @output_path.pack(fill: :x, padx: 16, pady: [4, 16])
 
         @status_label = TkLabel.new(right) do
-          text "  ●  LOCAL SESSION ENCRYPTED"
+          text '  ●  LOCAL SESSION ENCRYPTED'
           font TkFont.new("#{FONT} 9")
           foreground COLORS[:green_ok]
           background COLORS[:bg_panel]
@@ -272,12 +271,10 @@ module Enigma
         queue = Queue.new
 
         Thread.new do
-          begin
-            output = facade.lock(path, filelock_key, share)
-            queue << [:ok, output]
-          rescue StandardError => e
-            queue << [:error, e.message]
-          end
+          output = facade.lock(path, filelock_key, share)
+          queue << [:ok, output]
+        rescue StandardError => e
+          queue << [:error, e.message]
         end
 
         poll_lock(queue)
@@ -313,14 +310,12 @@ module Enigma
         queue = Queue.new
 
         Thread.new do
-          begin
-            facade.unlock(path, filelock_key, share)
-            queue << [:ok]
-          rescue Errors::AuthTagError
-            queue << [:error, 'Wrong master password or share key']
-          rescue StandardError => e
-            queue << [:error, e.message]
-          end
+          facade.unlock(path, filelock_key, share)
+          queue << [:ok]
+        rescue Errors::AuthTagError
+          queue << [:error, 'Wrong master password or share key']
+        rescue StandardError => e
+          queue << [:error, e.message]
         end
 
         poll_lock(queue)
@@ -346,7 +341,7 @@ module Enigma
             @output_path.delete(0, 'end')
             @output_path.insert(0, result[1].to_s)
             @status_label.configure(
-              'text' => "  ●  OPERATION COMPLETE",
+              'text' => '  ●  OPERATION COMPLETE',
               'foreground' => COLORS[:green_ok]
             )
           when :error
@@ -362,7 +357,7 @@ module Enigma
                               'text' => '  ⏳ PROCESSING...  ')
           @unlock_btn.configure('state' => 'disabled')
           @status_label.configure(
-            'text' => "  ●  PROCESSING...",
+            'text' => '  ●  PROCESSING...',
             'foreground' => COLORS[:orange]
           )
         else

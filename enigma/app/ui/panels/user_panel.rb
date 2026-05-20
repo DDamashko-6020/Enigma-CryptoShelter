@@ -1,5 +1,4 @@
 # frozen_string_literal: true
-# encoding: utf-8
 
 #
 # app/ui/panels/user_panel.rb
@@ -176,8 +175,11 @@ module Enigma
             end.pack(side: :left, fill: :x, expand: true)
           end
 
-          TkFrame.new(section) { background COLORS[:bg_main]; height 16 }
-            .pack(fill: :x)
+          TkFrame.new(section) do
+            background COLORS[:bg_main]
+            height 16
+          end
+                 .pack(fill: :x)
         end
 
         def build_close_button
@@ -213,19 +215,17 @@ module Enigma
           queue = Queue.new
 
           Thread.new do
-            begin
-              current_keys = verify_current_password!(current)
-              new_session = Core::Facades::VaultFacade.change_password(
-                current_keys, new_p, confirm
-              )
-              queue << [:ok, new_session]
-            rescue Errors::AuthTagError
-              queue << [:auth_error]
-            rescue Errors::VaultError, Errors::InvalidKeyError => e
-              queue << [:validation_error, e.message]
-            rescue => e
-              queue << [:error, e.message]
-            end
+            current_keys = verify_current_password!(current)
+            new_session = Core::Facades::VaultFacade.change_password(
+              current_keys, new_p, confirm
+            )
+            queue << [:ok, new_session]
+          rescue Errors::AuthTagError
+            queue << [:auth_error]
+          rescue Errors::VaultError, Errors::InvalidKeyError => e
+            queue << [:validation_error, e.message]
+          rescue StandardError => e
+            queue << [:error, e.message]
           end
 
           poll_change_pass(queue)
@@ -311,7 +311,7 @@ module Enigma
           end.pack(fill: :x)
 
           TkFrame.new(self) { background COLORS[:bg_main] }
-            .tap { |f| f.pack(fill: :x) }
+                 .tap { |f| f.pack(fill: :x) }
         end
 
         def build_divider
@@ -357,7 +357,7 @@ module Enigma
               cursor 'hand2'
               width 3
             end
-            btn.command = -> {
+            btn.command = lambda {
               show_state = !show_state
               entry.configure(show: show_state ? '' : '*')
               btn.configure(foreground: show_state ? COLORS[:orange] : COLORS[:fg_secondary])

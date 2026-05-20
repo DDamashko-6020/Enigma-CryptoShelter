@@ -1,5 +1,4 @@
 # frozen_string_literal: true
-# encoding: utf-8
 
 #
 # app/ui/panels/vault_panel.rb
@@ -67,10 +66,10 @@ module Enigma
           highlightbackground COLORS[:border]
         end
         search_entry.pack(fill: :x, ipady: 6, padx: 4, pady: 4)
-        search_entry.insert(0, "🔍 BUSCAR...")
+        search_entry.insert(0, '🔍 BUSCAR...')
 
         search_entry.bind('FocusIn') do
-          next unless @search_var.value == "🔍 BUSCAR..."
+          next unless @search_var.value == '🔍 BUSCAR...'
 
           @search_var.value = ''
           search_entry.configure('foreground' => COLORS[:fg_primary])
@@ -78,7 +77,7 @@ module Enigma
         search_entry.bind('FocusOut') do
           next unless @search_var.value.empty?
 
-          @search_var.value = "🔍 BUSCAR..."
+          @search_var.value = '🔍 BUSCAR...'
           search_entry.configure('foreground' => COLORS[:fg_secondary])
         end
         search_entry.bind('KeyRelease') { on_search }
@@ -312,7 +311,7 @@ module Enigma
 
       def on_search
         query = @search_var.value
-        return if query == "🔍 BUSCAR..." || query.nil?
+        return if query == '🔍 BUSCAR...' || query.nil?
 
         if query.strip.empty?
           populate_list(@manager.all)
@@ -337,30 +336,30 @@ module Enigma
       end
 
       def raw_password
-        Utils::PasswordGenerator.format(@pass_var.value, separator: '')
+        @pass_var.value.gsub('-', '')
       end
 
       def on_save
         notes = @notes_text.get('1.0', 'end').strip
         if @selected_credential.null?
           cred = @manager.add(
-            site:     @site_var.value.strip,
+            site: @site_var.value.strip,
             username: @user_var.value.strip,
             password: raw_password,
-            notes:    notes
+            notes: notes
           )
           @selected_credential = cred
         else
           @selected_credential = @manager.update(
             @selected_credential.id,
-            site:     @site_var.value.strip,
+            site: @site_var.value.strip,
             username: @user_var.value.strip,
             password: raw_password,
-            notes:    notes
+            notes: notes
           )
         end
         refresh_list
-        flash("✓ Guardado", COLORS[:green_ok])
+        flash('✓ Guardado', COLORS[:green_ok])
       rescue ArgumentError, Errors::VaultError => e
         flash("Error: #{e.message}", COLORS[:red_err])
       end
@@ -379,7 +378,7 @@ module Enigma
         @selected_credential = Core::Vault::NullCredential.new
         clear_form
         refresh_list
-        flash("✓ Eliminado", COLORS[:green_ok])
+        flash('✓ Eliminado', COLORS[:green_ok])
       rescue Errors::CredentialNotFoundError => e
         flash("Error: #{e.message}", COLORS[:red_err])
       end
@@ -389,7 +388,7 @@ module Enigma
 
         TkClipboard.clear
         TkClipboard.add(@selected_credential.password)
-        flash("✓ Copiado — limpiando en 10s", COLORS[:green_ok])
+        flash('✓ Copiado — limpiando en 10s', COLORS[:green_ok])
         @clipboard_timer&.cancel
         @clipboard_timer = TkAfter.new(10_000, 1) { TkClipboard.clear }
       end
@@ -426,11 +425,11 @@ module Enigma
         batch = []
         credentials.each do |cred|
           batch << [cred.id, cred.site, cred.username]
-          if batch.size >= 100
-            batch.each { |id, site, user| @tree.insert('', 'end', id: id, values: [site, user]) }
-            batch.clear
-            Tk.update
-          end
+          next unless batch.size >= 100
+
+          batch.each { |id, site, user| @tree.insert('', 'end', id: id, values: [site, user]) }
+          batch.clear
+          Tk.update
         end
         batch.each { |id, site, user| @tree.insert('', 'end', id: id, values: [site, user]) }
         Tk.update

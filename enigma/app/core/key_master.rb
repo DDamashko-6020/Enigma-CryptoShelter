@@ -31,12 +31,12 @@ module Enigma
         master_key = pbkdf2(master_password, salt)
 
         result = {
-          vault_key:    hkdf_expand(master_key, VAULT_INFO),
+          vault_key: hkdf_expand(master_key, VAULT_INFO),
           filelock_key: hkdf_expand(master_key, FILELOCK_INFO)
         }
 
         master_key.replace("\x00" * KEY_LENGTH)
-        master_key = nil
+        nil
 
         result
       end
@@ -54,7 +54,7 @@ module Enigma
       end
 
       def hkdf_expand(master_key, info)
-        OpenSSL::HMAC.digest(DIGEST, master_key, info + "\x01")[0, KEY_LENGTH]
+        OpenSSL::HMAC.digest(DIGEST, master_key, "#{info}\u0001")[0, KEY_LENGTH]
       end
     end
   end

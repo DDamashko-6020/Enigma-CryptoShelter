@@ -10,6 +10,7 @@
 
 require 'json'
 require 'fileutils'
+require 'digest'
 require 'openssl'
 
 module Enigma
@@ -28,13 +29,13 @@ module Enigma
         SALT_LENGTH = 32
 
         NUM_QUESTIONS    = 3
-        SECURITY_PER_Q   = 32  # 1 byte index + 31 byte hash
-        SECURITY_SIZE    = NUM_QUESTIONS * SECURITY_PER_Q  # 96
+        SECURITY_PER_Q   = 32 # 1 byte index + 31 byte hash
+        SECURITY_SIZE    = NUM_QUESTIONS * SECURITY_PER_Q # 96
 
         IV_BYTES         = 12
         TAG_BYTES        = 16
-        RECOVERY_KEYSIZE = 32  # only vault_key stored for recovery
-        RECOVERY_SIZE    = IV_BYTES + TAG_BYTES + RECOVERY_KEYSIZE  # 60
+        RECOVERY_KEYSIZE = 32 # only vault_key stored for recovery
+        RECOVERY_SIZE    = IV_BYTES + TAG_BYTES + RECOVERY_KEYSIZE # 60
 
         HEADER_SIZE_V1 = MAGIC_SIZE + SALT_LENGTH                         # 39
         HEADER_SIZE_V2 = MAGIC_SIZE + SALT_LENGTH + SECURITY_SIZE +
@@ -43,24 +44,24 @@ module Enigma
         UNUSED_INDEX = 0xFF
 
         SECURITY_QUESTIONS = [
-          "¿Cuál es el nombre de tu mascota?",
-          "¿Cuál es tu ciudad favorita?",
-          "¿Cuál es el nombre de tu primer profesor?",
-          "¿Cuál es tu comida favorita?",
-          "¿Cuál es el año de nacimiento de tu madre?",
-          "¿Cuál es tu libro favorito?",
-          "¿Cuál es tu película favorita?",
-          "¿Cuál es el nombre de tu mejor amigo de la infancia?",
-          "¿Cuál es tu deporte favorito?",
-          "¿Cuál es el modelo de tu primer auto?",
-          "¿Cuál es el nombre de tu escuela primaria?",
-          "¿Cuál es tu color favorito?",
-          "¿Cuál es el nombre de soltera de tu madre?",
-          "¿Cuál es tu estación del año favorita?",
-          "¿Cuál es tu artista o banda favorita?",
-          "¿Cuál es tu destino de viaje soñado?",
-          "¿Cuál es el segundo apellido de tu padre?",
-          "¿Cuál es tu número de la suerte?"
+          '¿Cuál es el nombre de tu mascota?',
+          '¿Cuál es tu ciudad favorita?',
+          '¿Cuál es el nombre de tu primer profesor?',
+          '¿Cuál es tu comida favorita?',
+          '¿Cuál es el año de nacimiento de tu madre?',
+          '¿Cuál es tu libro favorito?',
+          '¿Cuál es tu película favorita?',
+          '¿Cuál es el nombre de tu mejor amigo de la infancia?',
+          '¿Cuál es tu deporte favorito?',
+          '¿Cuál es el modelo de tu primer auto?',
+          '¿Cuál es el nombre de tu escuela primaria?',
+          '¿Cuál es tu color favorito?',
+          '¿Cuál es el nombre de soltera de tu madre?',
+          '¿Cuál es tu estación del año favorita?',
+          '¿Cuál es tu artista o banda favorita?',
+          '¿Cuál es tu destino de viaje soñado?',
+          '¿Cuál es el segundo apellido de tu padre?',
+          '¿Cuál es tu número de la suerte?'
         ].freeze
 
         def self.vault_exists?
@@ -102,7 +103,7 @@ module Enigma
 
             questions << {
               question_index: idx,
-              answer_hash:    security_raw[offset + 1, 31]
+              answer_hash: security_raw[offset + 1, 31]
             }
           end
           questions
@@ -110,16 +111,14 @@ module Enigma
 
         def self.read_question_texts(path = VAULT_PATH)
           data = read_security_data(path)
-          if data.empty?
-            return try_read_questions_from_authdat
-          end
+          return try_read_questions_from_authdat if data.empty?
 
           data.map do |q|
             idx = q[:question_index]
             if idx.between?(0, SECURITY_QUESTIONS.length - 1)
               SECURITY_QUESTIONS[idx]
             else
-              "Pregunta personalizada"
+              'Pregunta personalizada'
             end
           end
         end
@@ -133,7 +132,7 @@ module Enigma
               entered_hash = Digest::SHA256.digest(
                 entered_answers[i].to_s.strip.downcase
               )[0, 31]
-              constant_time_compare(entered_hash, q[:answer_hash])
+              constant_time_compare?(entered_hash, q[:answer_hash])
             end
           else
             try_verify_via_authdat(entered_answers)
@@ -185,30 +184,32 @@ module Enigma
 
           if questions_and_answers
             security_data = build_security_data(
-              questions_and_answers[:questions])
+              questions_and_answers[:questions]
+            )
             recovery_blob = build_recovery_data(
               questions_and_answers[:vault_key],
-              questions_and_answers[:answers])
+              questions_and_answers[:answers]
+            )
           else
             security_data = "\x00" * SECURITY_SIZE
             recovery_blob = "\x00" * RECOVERY_SIZE
           end
 
           payload = @cipher.encrypt(JSON.generate({ credentials: [] }))
-          File.binwrite(@path, MAGIC_V2 + @salt + security_data +
-                        recovery_blob + payload)
-          File.chmod(FILE_MODE, @path)
+          File.open(@path, 'wb', perm: FILE_MODE) do |f|
+            f.write(MAGIC_V2 + @salt + security_data + recovery_blob + payload)
+          end
         end
 
         def load
           raw = File.binread(@path)
 
           if raw.start_with?(MAGIC_V2)
-            @v2  = true
+            @v2 = true
             @salt = raw[MAGIC_SIZE, SALT_LENGTH]
             encrypted = raw[HEADER_SIZE_V2..]
           elsif raw.start_with?(MAGIC)
-            @v2  = false
+            @v2 = false
             @salt = raw[MAGIC_SIZE, SALT_LENGTH]
             encrypted = raw[HEADER_SIZE_V1..]
           else
@@ -227,7 +228,7 @@ module Enigma
           payload = @cipher.encrypt(json)
 
           if @v2
-            raw  = File.binread(@path)
+            raw = File.binread(@path)
             header = raw[0, HEADER_SIZE_V2]
           else
             # Migrate old vault → new format on first save
@@ -236,8 +237,7 @@ module Enigma
                      ("\x00" * RECOVERY_SIZE)
           end
 
-          File.binwrite(@path, header + payload)
-          File.chmod(FILE_MODE, @path)
+          File.open(@path, 'wb', perm: FILE_MODE) { |f| f.write(header + payload) }
         end
 
         class << self
@@ -246,11 +246,12 @@ module Enigma
             storage = new(path, current_cipher)
             credentials = storage.load
 
-            tmp_path = path + '.tmp'
+            tmp_path = "#{path}.tmp"
 
             new_salt = KeyMaster.instance.generate_salt
             new_keys = KeyMaster.instance.derive_session_keys(
-              new_password, new_salt)
+              new_password, new_salt
+            )
             new_cipher = Cipher::AesGcm.new(new_keys[:vault_key])
 
             tmp_storage = new(tmp_path, new_cipher)
@@ -265,7 +266,6 @@ module Enigma
             tmp_storage.save(credentials)
 
             File.rename(tmp_path, path)
-            File.chmod(FILE_MODE, path)
             clear_salt_cache!
 
             new_keys
@@ -281,16 +281,14 @@ module Enigma
         def ensure_salt_loaded!
           return if @salt
 
-          raw   = File.binread(@path)
-          if raw.start_with?(MAGIC_V2) || raw.start_with?(MAGIC)
-            @salt = raw[MAGIC_SIZE, SALT_LENGTH]
-          else
-            raise Errors::CorruptedDataError
-          end
+          raw = File.binread(@path)
+          raise Errors::CorruptedDataError unless raw.start_with?(MAGIC_V2) || raw.start_with?(MAGIC)
+
+          @salt = raw[MAGIC_SIZE, SALT_LENGTH]
         end
 
         def build_security_data(questions)
-          padded = Array.new(NUM_QUESTIONS) { |i|
+          padded = Array.new(NUM_QUESTIONS) do |i|
             if i < questions.length
               q = questions[i]
               idx = [q[:index] || q['index'] || UNUSED_INDEX].pack('C')
@@ -299,9 +297,9 @@ module Enigma
               )[0, 31]
               idx + hash
             else
-              [UNUSED_INDEX].pack('C') + "\x00" * 31
+              [UNUSED_INDEX].pack('C') + ("\x00" * 31)
             end
-          }
+          end
           padded.join
         end
 
@@ -324,11 +322,11 @@ module Enigma
           )
         end
 
-        def self.constant_time_compare(a, b)
-          return false unless a.bytesize == b.bytesize
+        def self.constant_time_compare?(left, right)
+          return false unless left.bytesize == right.bytesize
 
           result = 0
-          a.bytes.zip(b.bytes) { |x, y| result |= x ^ y }
+          left.bytes.zip(right.bytes) { |x, y| result |= x ^ y }
           result.zero?
         end
 
@@ -356,7 +354,7 @@ module Enigma
           nil
         end
 
-        private_class_method :recovery_key_from_answers, :constant_time_compare,
+        private_class_method :recovery_key_from_answers, :constant_time_compare?,
                              :try_read_questions_from_authdat,
                              :try_verify_via_authdat, :try_recover_via_authdat
       end

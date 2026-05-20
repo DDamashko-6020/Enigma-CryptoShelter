@@ -1,5 +1,4 @@
 # frozen_string_literal: true
-# encoding: utf-8
 
 #
 # app/ui/screens/create_screen.rb
@@ -41,7 +40,7 @@ module Enigma
         canvas.pack(expand: true, pady: [20, 0])
 
         title = TkLabel.new(canvas) do
-          text "🔒  ENIGMA CRYPTOSHELTER"
+          text '🔒  ENIGMA CRYPTOSHELTER'
           font TkFont.new("#{FONT} 14 bold")
           foreground COLORS[:orange]
           background COLORS[:bg_main]
@@ -259,21 +258,25 @@ module Enigma
 
         answers = []
         questions_data = []
+        valid = true
         @q_vars.each_with_index do |qv, i|
           q_text = qv.value.strip.force_encoding('UTF-8')
           a_text = @a_entries[i].value.strip.force_encoding('UTF-8')
           if q_text.empty? || a_text.empty?
             @error_label.configure('text' => "  Completa pregunta #{i + 1} y su respuesta")
-            return
+            valid = false
+            break
           end
           idx = SECURITY_QUESTIONS.index(q_text)
           unless idx
             @error_label.configure('text' => "  Pregunta #{i + 1} no válida")
-            return
+            valid = false
+            break
           end
           questions_data << { index: idx, answer: a_text }
           answers << a_text
         end
+        return unless valid
 
         @create_btn.configure('state' => 'disabled', 'text' => '  Creando...  ')
         @error_label.configure('text' => '')
@@ -282,17 +285,15 @@ module Enigma
         queue = Queue.new
 
         Thread.new do
-          begin
-            security_data = {
-              questions: questions_data.map { |q| { index: q[:index], answer: q[:answer] } },
-              answers: answers
-            }
-            session = Core::Facades::VaultFacade.create(pw, security_data: security_data)
-            queue << [:ok, session]
-          rescue => e
-            warn "[CreateScreen] #{e.class}: #{e.message}"
-            queue << [:error, e.message]
-          end
+          security_data = {
+            questions: questions_data.map { |q| { index: q[:index], answer: q[:answer] } },
+            answers: answers
+          }
+          session = Core::Facades::VaultFacade.create(pw, security_data: security_data)
+          queue << [:ok, session]
+        rescue StandardError => e
+          warn "[CreateScreen] #{e.class}: #{e.message}"
+          queue << [:error, e.message]
         end
 
         poll_create(queue)

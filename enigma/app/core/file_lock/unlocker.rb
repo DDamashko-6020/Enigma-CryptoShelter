@@ -24,8 +24,6 @@ module Enigma
           out_path = ultra_path.delete_suffix('.ultra')
           File.binwrite(out_path, layer1)
           out_path
-        rescue Errors::AuthTagError
-          raise
         end
       end
     end

@@ -65,7 +65,7 @@ module Enigma
           return @credentials.dup if query.to_s.strip.empty?
 
           q = query.to_s.downcase
-          exact = @site_index[q] || []
+          @site_index[q] || []
           partial = @credentials.select do |c|
             c.site.downcase.include?(q) || c.username.downcase.include?(q)
           end
@@ -80,10 +80,10 @@ module Enigma
           updated = Credential.new(
             id: old.id, created_at: old.created_at,
             updated_at: Time.now.iso8601,
-            site:     fields.fetch(:site, old.site),
+            site: fields.fetch(:site, old.site),
             username: fields.fetch(:username, old.username),
             password: fields.fetch(:password, old.password),
-            notes:    fields.fetch(:notes, old.notes)
+            notes: fields.fetch(:notes, old.notes)
           )
           @credentials[idx] = updated
           add_to_index!(updated)

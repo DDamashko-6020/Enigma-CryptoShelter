@@ -1,5 +1,4 @@
 # frozen_string_literal: true
-# encoding: utf-8
 
 #
 # app/ui/panels/cipher_panel.rb
@@ -135,7 +134,7 @@ module Enigma
         status_card.pack(fill: :x, padx: 16, pady: [0, 16])
 
         @status_label = TkLabel.new(status_card) do
-          text "  ●  SESSION ENCRYPTED"
+          text '  ●  SESSION ENCRYPTED'
           font TkFont.new("#{FONT} 9")
           foreground COLORS[:green_ok]
           background COLORS[:bg_panel]

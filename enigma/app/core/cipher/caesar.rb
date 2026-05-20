@@ -36,7 +36,7 @@ module Enigma
         def encrypt_impl(plaintext)
           plaintext.bytes.map do |b|
             if b >= FIRST_CHAR && b < FIRST_CHAR + RANGE_SIZE
-              ((b - FIRST_CHAR + shift) % RANGE_SIZE + FIRST_CHAR).chr
+              (((b - FIRST_CHAR + shift) % RANGE_SIZE) + FIRST_CHAR).chr
             else
               b.chr
             end
@@ -46,7 +46,7 @@ module Enigma
         def decrypt_impl(ciphertext)
           ciphertext.bytes.map do |b|
             if b >= FIRST_CHAR && b < FIRST_CHAR + RANGE_SIZE
-              ((b - FIRST_CHAR - shift) % RANGE_SIZE + FIRST_CHAR).chr
+              (((b - FIRST_CHAR - shift) % RANGE_SIZE) + FIRST_CHAR).chr
             else
               b.chr
             end
