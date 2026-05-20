@@ -9,7 +9,10 @@ RSpec.describe Enigma::Core::Vault::Storage do
   let(:vault_key) { Enigma::Core::KeyMaster.instance.derive_session_keys(password, salt)[:vault_key] }
   let(:cipher) { Enigma::Core::Cipher::AesGcm.new(vault_key) }
 
-  before { FileUtils.rm_f(tmp_path) }
+  before do
+    FileUtils.rm_f(tmp_path)
+    described_class.clear_salt_cache!
+  end
   after(:each) { FileUtils.rm_f(tmp_path) if File.exist?(tmp_path) }
 
   describe '#exists?' do
@@ -33,6 +36,15 @@ RSpec.describe Enigma::Core::Vault::Storage do
       storage.create_new!(salt)
       mode = File.stat(tmp_path).mode & 0o777
       expect(mode).to eq(0o600)
+    end
+
+    it 'writes a full header (magic + salt + security + recovery)' do
+      storage.create_new!(salt)
+      raw = File.binread(tmp_path)
+      header_size = described_class::MAGIC_SIZE + described_class::SALT_LENGTH +
+                    described_class::SECURITY_SIZE + described_class::RECOVERY_SIZE
+      expect(raw.bytesize).to be > header_size
+      expect(raw).to start_with(described_class::MAGIC_V2)
     end
   end
 
@@ -92,6 +104,95 @@ RSpec.describe Enigma::Core::Vault::Storage do
       File.binwrite(tmp_path, 'x')
       expect { described_class.read_salt(tmp_path) }
         .to raise_error(Enigma::Errors::CorruptedDataError)
+    end
+  end
+
+  describe '.read_security_data' do
+    it 'reads security questions from header' do
+      questions = [
+        { index: 0, answer: 'fluffy' },
+        { index: 5, answer: 'moby' }
+      ]
+      answers = %w[fluffy moby]
+      storage.create_new!(salt, {
+        questions: questions,
+        answers: answers,
+        vault_key: vault_key
+      })
+      data = described_class.read_security_data(tmp_path)
+      expect(data.size).to eq(2)
+      expect(data[0][:question_index]).to eq(0)
+      expect(data[1][:question_index]).to eq(5)
+    end
+  end
+
+  describe '.verify_answers' do
+    it 'verifies correct answers' do
+      questions = [
+        { index: 0, answer: 'Fluffy' },
+        { index: 5, answer: 'Moby' }
+      ]
+      answers = %w[Fluffy Moby]
+      storage.create_new!(salt, {
+        questions: questions,
+        answers: answers,
+        vault_key: vault_key
+      })
+      expect(described_class.verify_answers(%w[Fluffy Moby], tmp_path)).to be true
+    end
+
+    it 'rejects wrong answers' do
+      questions = [
+        { index: 0, answer: 'fluffy' },
+        { index: 5, answer: 'moby' }
+      ]
+      answers = %w[fluffy moby]
+      storage.create_new!(salt, {
+        questions: questions,
+        answers: answers,
+        vault_key: vault_key
+      })
+      expect(described_class.verify_answers(%w[wrong wrong], tmp_path)).to be false
+    end
+  end
+
+  describe '.reencrypt!' do
+    it 'creates a new vault with new password preserving credentials' do
+      storage.create_new!(salt)
+      cred = Enigma::Core::Vault::Credential.new(site: 'S', username: 'u', password: 'p')
+      storage.save([cred])
+
+      new_password = 'new-password-123'
+      new_keys = described_class.reencrypt!(cipher, new_password, nil, tmp_path)
+
+      expect(new_keys[:vault_key].bytesize).to eq(32)
+      expect(new_keys[:filelock_key].bytesize).to eq(32)
+
+      new_cipher = Enigma::Core::Cipher::AesGcm.new(new_keys[:vault_key])
+      new_storage = described_class.new(tmp_path, new_cipher)
+      loaded = new_storage.load
+      expect(loaded.size).to eq(1)
+      expect(loaded.first.site).to eq('S')
+    end
+
+    it 'is atomic — vault still readable after reencryption with new key' do
+      storage.create_new!(salt)
+      cred = Enigma::Core::Vault::Credential.new(site: 'S', username: 'u', password: 'p')
+      storage.save([cred])
+
+      original_raw = File.binread(tmp_path)
+
+      new_keys = described_class.reencrypt!(cipher, 'new-password-456', nil, tmp_path)
+      expect(File.exist?(tmp_path)).to be true
+
+      new_cipher = Enigma::Core::Cipher::AesGcm.new(new_keys[:vault_key])
+      new_storage = described_class.new(tmp_path, new_cipher)
+      loaded = new_storage.load
+      expect(loaded.size).to eq(1)
+      expect(loaded.first.site).to eq('S')
+
+      raw = File.binread(tmp_path)
+      expect(raw).not_to eq(original_raw)
     end
   end
 end

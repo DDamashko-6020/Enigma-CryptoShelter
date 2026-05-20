@@ -4,6 +4,7 @@ require 'json'
 require 'fileutils'
 require 'openssl'
 require 'securerandom'
+require 'base64'
 require_relative '../key_master'
 
 module Enigma
@@ -21,15 +22,34 @@ module Enigma
         SALT_SIZE  = 32
         HASH_SIZE  = 32
 
+        IV_BYTES  = 12
+        TAG_BYTES = 16
+
         def exists?
           File.exist?(AUTH_PATH)
         end
 
-        def create!(master_password, questions)
+        def create!(master_password, questions, answers = nil)
           salt = SecureRandom.random_bytes(SALT_SIZE)
-          verify_hash = derive_verify_hash(master_password, salt)
+          km = KeyMaster.instance
+          keys = km.derive_session_keys(master_password, salt)
+          verify_hash = OpenSSL::Digest::SHA256.digest(keys[:vault_key])
 
-          payload = JSON.generate('questions' => questions).force_encoding('ASCII-8BIT')
+          payload_data = { 'questions' => questions }
+
+          if answers
+            recovery_key = recovery_key_from_answers(answers)
+            data_to_encrypt = keys[:vault_key] + keys[:filelock_key]
+            cipher = OpenSSL::Cipher.new('aes-256-gcm')
+            cipher.encrypt
+            cipher.key = recovery_key
+            iv = cipher.random_iv
+            encrypted = cipher.update(data_to_encrypt) + cipher.final
+            tag = cipher.auth_tag(TAG_BYTES)
+            payload_data['recovery_data'] = Base64.strict_encode64(iv + tag + encrypted)
+          end
+
+          payload = JSON.generate(payload_data).force_encoding('ASCII-8BIT')
           FileUtils.mkdir_p(AUTH_DIR, mode: DIR_MODE)
           File.binwrite(AUTH_PATH, MAGIC + salt + verify_hash + payload)
           File.chmod(FILE_MODE, AUTH_PATH)
@@ -90,7 +110,43 @@ module Enigma
           false
         end
 
+        def recover(answers)
+          raw = read_auth_file or return nil
+          data = parse_auth_json(raw)
+          recovery_b64 = data['recovery_data'] or return nil
+          questions = data['questions'] or return nil
+
+          return nil unless questions.size == answers.size
+
+          recovery_key = recovery_key_from_answers(answers)
+
+          raw_data = Base64.strict_decode64(recovery_b64)
+          iv = raw_data[0, IV_BYTES]
+          tag = raw_data[IV_BYTES, TAG_BYTES]
+          encrypted = raw_data[(IV_BYTES + TAG_BYTES)..]
+
+          cipher = OpenSSL::Cipher.new('aes-256-gcm')
+          cipher.decrypt
+          cipher.key = recovery_key
+          cipher.iv = iv
+          cipher.auth_tag = tag
+          decrypted = cipher.update(encrypted) + cipher.final
+
+          {
+            vault_key:    decrypted[0, 32],
+            filelock_key: decrypted[32, 32]
+          }
+        rescue OpenSSL::Cipher::CipherError, ArgumentError, TypeError
+          nil
+        end
+
         private
+
+        def recovery_key_from_answers(answers)
+          OpenSSL::Digest::SHA256.digest(
+            answers.map { |a| a.strip.downcase }.join
+          )
+        end
 
         def read_auth_file
           return nil unless exists?

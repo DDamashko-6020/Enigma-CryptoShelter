@@ -8,3 +8,8 @@ coverage/
 .enigma_cryptoshelter/
 *.ultra
 .ruby-lsp/
+dist/
+
+# Tebako cache (large, auto-generated)
+.tebako/cache/
+.tebako/output/

@@ -4,6 +4,7 @@
 #
 # app/ui/screens/unlock_screen.rb
 # Responsibility: Returning-user vault unlock screen with loading state.
+# Uses Queue + TkAfter polling (Thread-safe, proven pattern from FileLockPanel).
 #
 
 require 'tk'
@@ -134,15 +135,43 @@ module Enigma
         @error_label.configure('text' => '')
         Tk.update
 
-        session = Core::Facades::VaultFacade.open(pw)
-        @on_success.call(session)
-      rescue Errors::AuthTagError
-        @error_label.configure('text' => '  Clave incorrecta')
-        @unlock_btn.configure('state' => 'normal', 'text' => '  ABRIR VAULT  ')
-        @pw_entry.delete(0, 'end')
-      rescue StandardError => e
-        @error_label.configure('text' => "  Error: #{e.message}")
-        @unlock_btn.configure('state' => 'normal', 'text' => '  ABRIR VAULT  ')
+        queue = Queue.new
+
+        Thread.new do
+          begin
+            session = Core::Facades::VaultFacade.open(pw)
+            queue << [:ok, session]
+          rescue Errors::AuthTagError
+            queue << [:auth_error]
+          rescue => e
+            queue << [:error, e.message]
+          end
+        end
+
+        poll_unlock(queue)
+      end
+
+      def poll_unlock(queue)
+        TkAfter.new(50, 1) do
+          result = begin; queue.pop(true); rescue ThreadError; nil; end
+
+          if result.nil?
+            poll_unlock(queue)
+            return
+          end
+
+          case result[0]
+          when :ok
+            @on_success.call(result[1])
+          when :auth_error
+            @error_label.configure('text' => '  Clave incorrecta')
+            @unlock_btn.configure('state' => 'normal', 'text' => '  ABRIR VAULT  ')
+            @pw_entry.delete(0, 'end')
+          when :error
+            @error_label.configure('text' => "  Error: #{result[1]}")
+            @unlock_btn.configure('state' => 'normal', 'text' => '  ABRIR VAULT  ')
+          end
+        end
       end
 
       def toggle_password

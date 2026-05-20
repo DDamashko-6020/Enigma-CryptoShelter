@@ -3,7 +3,9 @@
 
 #
 # app/ui/screens/create_screen.rb
-# Responsibility: First-run vault creation screen with security questions.
+# Responsibility: First-run vault creation with security questions.
+# Stores security data in vault header.
+# Uses Queue + TkAfter polling (Thread-safe).
 #
 
 require 'tk'
@@ -14,26 +16,7 @@ module Enigma
       COLORS = MainWindow::COLORS
       FONT   = MainWindow::FONT
 
-      SECURITY_QUESTIONS = [
-        "¿Cuál es el nombre de tu mascota?",
-        "¿Cuál es tu ciudad favorita?",
-        "¿Cuál es el nombre de tu primer profesor?",
-        "¿Cuál es tu comida favorita?",
-        "¿Cuál es el año de nacimiento de tu madre?",
-        "¿Cuál es tu libro favorito?",
-        "¿Cuál es tu película favorita?",
-        "¿Cuál es el nombre de tu mejor amigo de la infancia?",
-        "¿Cuál es tu deporte favorito?",
-        "¿Cuál es el modelo de tu primer auto?",
-        "¿Cuál es el nombre de tu escuela primaria?",
-        "¿Cuál es tu color favorito?",
-        "¿Cuál es el nombre de soltera de tu madre?",
-        "¿Cuál es tu estación del año favorita?",
-        "¿Cuál es tu artista o banda favorita?",
-        "¿Cuál es tu destino de viaje soñado?",
-        "¿Cuál es el segundo apellido de tu padre?",
-        "¿Cuál es tu número de la suerte?"
-      ].freeze
+      SECURITY_QUESTIONS = Core::Vault::Storage::SECURITY_QUESTIONS
 
       def initialize(root, on_success)
         @root       = root
@@ -173,14 +156,13 @@ module Enigma
         sep.pack(fill: :x, padx: 40, pady: [12, 12])
 
         q_label = TkLabel.new(parent) do
-          text '  PREGUNTAS DE SEGURIDAD (elige o escribe la tuya)'
+          text '  PREGUNTAS DE SEGURIDAD (elige 2)'
           font TkFont.new("#{FONT} 9 bold")
           foreground COLORS[:orange]
           background COLORS[:bg_main]
         end
         q_label.pack(anchor: 'w', padx: 40, pady: [0, 8])
 
-        @q_entries = []
         @q_vars    = []
         @a_entries = []
 
@@ -201,13 +183,13 @@ module Enigma
           q_combo = Tk::Tile::Combobox.new(card) do
             values SECURITY_QUESTIONS
             textvariable q_var
+            state 'readonly'
             background COLORS[:bg_input]
             foreground COLORS[:fg_primary]
             font TkFont.new("#{FONT} 10")
           end
           q_combo.pack(fill: :x, padx: 16, pady: [4, 0])
           @q_vars << q_var
-          @q_entries << q_combo
 
           a_label = TkLabel.new(card) do
             text '  Respuesta'
@@ -275,28 +257,64 @@ module Enigma
           return
         end
 
-        questions = []
+        answers = []
+        questions_data = []
         @q_vars.each_with_index do |qv, i|
-          q = qv.value.strip.force_encoding('UTF-8')
-          a = @a_entries[i].value.strip.force_encoding('UTF-8')
-          if q.empty? || a.empty?
+          q_text = qv.value.strip.force_encoding('UTF-8')
+          a_text = @a_entries[i].value.strip.force_encoding('UTF-8')
+          if q_text.empty? || a_text.empty?
             @error_label.configure('text' => "  Completa pregunta #{i + 1} y su respuesta")
             return
           end
-          questions << { 'q' => q, 'h' => OpenSSL::Digest::SHA256.hexdigest(a.downcase) }
+          idx = SECURITY_QUESTIONS.index(q_text)
+          unless idx
+            @error_label.configure('text' => "  Pregunta #{i + 1} no válida")
+            return
+          end
+          questions_data << { index: idx, answer: a_text }
+          answers << a_text
         end
 
         @create_btn.configure('state' => 'disabled', 'text' => '  Creando...  ')
         @error_label.configure('text' => '')
         Tk.update
 
-        Core::Auth::AuthConfig.new.create!(pw, questions)
-        session = Core::Facades::VaultFacade.create(pw)
-        @on_success.call(session)
-      rescue StandardError => e
-        warn "[CreateScreen] #{e.class}: #{e.message}"
-        @error_label.configure('text' => "  Error: #{e.message}")
-        @create_btn.configure('state' => 'normal', 'text' => '  CREAR VAULT  ')
+        queue = Queue.new
+
+        Thread.new do
+          begin
+            security_data = {
+              questions: questions_data.map { |q| { index: q[:index], answer: q[:answer] } },
+              answers: answers
+            }
+            session = Core::Facades::VaultFacade.create(pw, security_data: security_data)
+            queue << [:ok, session]
+          rescue => e
+            warn "[CreateScreen] #{e.class}: #{e.message}"
+            queue << [:error, e.message]
+          end
+        end
+
+        poll_create(queue)
+      end
+
+      def poll_create(queue)
+        TkAfter.new(50, 1) do
+          result = begin; queue.pop(true); rescue ThreadError; nil; end
+
+          if result.nil?
+            poll_create(queue)
+            return
+          end
+
+          case result[0]
+          when :ok
+            @on_success.call(result[1])
+          when :error
+            @error_label.configure('text' => "  Error: #{result[1]}")
+            @create_btn.configure('state' => 'normal', 'text' => '  CREAR VAULT  ')
+          end
+        end
       end
 
       def toggle_password

@@ -32,6 +32,32 @@ RSpec.describe Enigma::Utils::PasswordGenerator do
     end
   end
 
+  describe '.format' do
+    it 'groups characters with default separator' do
+      expect(described_class.format('ABCDEFGH')).to eq('ABCD-EFGH')
+    end
+
+    it 'handles non-multiple length' do
+      expect(described_class.format('ABCDEFGHI')).to eq('ABCD-EFGH-I')
+    end
+
+    it 'returns empty string for empty input' do
+      expect(described_class.format('')).to eq('')
+    end
+
+    it 'strips existing separators before formatting' do
+      expect(described_class.format('AB-CD-EF-GH')).to eq('ABCD-EFGH')
+    end
+
+    it 'uses custom group size' do
+      expect(described_class.format('ABCDEF', group_size: 3)).to eq('ABC-DEF')
+    end
+
+    it 'uses custom separator' do
+      expect(described_class.format('ABCDEFGH', separator: ' ')).to eq('ABCD EFGH')
+    end
+  end
+
   describe '.strength' do
     it 'returns :weak for short password' do
       expect(described_class.strength('Ab1')).to eq(:weak)

@@ -47,15 +47,40 @@ ruby main.rb
 bundle exec rspec
 ```
 
-## Build executable
-```bash
-# Windows
-gem install ocra
-ocra main.rb --gem-all --windows
+## Build Executable
 
-# Mac / Linux (Traveling Ruby)
-# See docs/packaging.md
+Uses [Tebako](https://github.com/tamatebako/tebako) —
+packages the app + Ruby runtime into a single executable.
+No Ruby required on the target machine.
+
+### Install Tebako (once)
+```bash
+gem install tebako
 ```
+
+### Linux / macOS
+```bash
+chmod +x package/build.sh
+./package/build.sh
+```
+Output: `dist/enigma_cryptoshelter_linux` or `dist/enigma_cryptoshelter_mac`
+
+### Windows
+```cmd
+package\build.bat
+```
+Output: `dist\enigma_cryptoshelter.exe`
+
+### All platforms (via Docker)
+```bash
+./package/build_all.sh
+```
+
+### Notes
+- First build downloads Ruby runtime (~5-10 min)
+- Subsequent builds use cached runtime (~1-2 min)
+- Target machines need **no Ruby, no gems, no dependencies**
+- Vault file stored at: `~/.enigma_cryptoshelter/vault.dat`
 
 ## Architecture
 ```

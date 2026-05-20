@@ -32,6 +32,11 @@ module Enigma
         @frame.pack(side: :top, fill: :both, expand: true)
       end
 
+      def update_session(new_session)
+        @manager = new_session[:manager]
+        refresh_list
+      end
+
       private
 
       def build_ui
@@ -331,13 +336,17 @@ module Enigma
         clear_form
       end
 
+      def raw_password
+        Utils::PasswordGenerator.format(@pass_var.value, separator: '')
+      end
+
       def on_save
         notes = @notes_text.get('1.0', 'end').strip
         if @selected_credential.null?
           cred = @manager.add(
             site:     @site_var.value.strip,
             username: @user_var.value.strip,
-            password: @pass_var.value,
+            password: raw_password,
             notes:    notes
           )
           @selected_credential = cred
@@ -346,7 +355,7 @@ module Enigma
             @selected_credential.id,
             site:     @site_var.value.strip,
             username: @user_var.value.strip,
-            password: @pass_var.value,
+            password: raw_password,
             notes:    notes
           )
         end
@@ -387,7 +396,7 @@ module Enigma
 
       def on_generate
         pass = Utils::PasswordGenerator.generate(length: 20, symbols: true)
-        @pass_var.value = pass
+        @pass_var.value = Utils::PasswordGenerator.format(pass)
         update_strength(pass)
         @pass_entry.configure('show' => '')
       end
@@ -441,7 +450,7 @@ module Enigma
         @selected_credential = cred
         @site_var.value   = cred.site
         @user_var.value   = cred.username
-        @pass_var.value   = cred.password
+        @pass_var.value   = Utils::PasswordGenerator.format(cred.password)
         @notes_text.delete('1.0', 'end')
         @notes_text.insert('end', cred.notes)
         update_strength(cred.password)

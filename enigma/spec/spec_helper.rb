@@ -8,6 +8,12 @@ require 'utils/password_generator'
 require 'utils/validator'
 require 'utils/file_handler'
 
+RSpec.configure do |config|
+  config.after(:each) do
+    Enigma::Core::Vault::Storage.clear_salt_cache!
+  end
+end
+
 if ENV['COVERAGE']
   require 'simplecov'
   SimpleCov.start do

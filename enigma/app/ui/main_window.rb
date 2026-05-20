@@ -58,28 +58,48 @@ module Enigma
       end
 
       def show_unlock_screen
+        @screen_frame&.destroy
         @screen = UnlockScreen.new(@root, method(:on_vault_ready), method(:on_recovery))
       end
 
-      def show_recovery_screen
+      def show_change_password_screen(current_keys)
         @screen&.hide
-        @screen = RecoveryScreen.new(@root, method(:on_recovery_done), method(:on_recovery_back))
+        @screen_frame = TkFrame.new(@root) { background COLORS[:bg_main] }
+        @screen_frame.pack(fill: :both, expand: true)
+        @screen = Screens::ChangePasswordScreen.new(
+          @screen_frame,
+          on_back:      -> { show_unlock_screen },
+          on_success:   method(:on_change_password_success),
+          current_keys: current_keys
+        )
+        Tk.update
       end
 
       def on_recovery
-        show_recovery_screen
+        @screen&.hide
+        @screen_frame = TkFrame.new(@root) { background COLORS[:bg_main] }
+        @screen_frame.pack(fill: :both, expand: true)
+        @screen = RecoveryScreen.new(
+          @screen_frame,
+          on_success: method(:on_recovery_success),
+          on_back:    -> { show_unlock_screen }
+        )
+        Tk.update
       end
 
-      def on_recovery_back
+      def on_recovery_success(recovered_keys)
         @screen&.hide
+        @screen_frame&.destroy
         Tk.update
-        show_unlock_screen
+        show_change_password_screen(recovered_keys)
       end
 
-      def on_recovery_done
+      def on_change_password_success(new_session)
+        @session = new_session
         @screen&.hide
+        @screen_frame&.destroy
         Tk.update
-        show_create_screen
+        build_main_app
       end
 
       def on_vault_ready(session)
@@ -90,6 +110,36 @@ module Enigma
       rescue => e
         warn "[on_vault_ready] #{e.class}: #{e.message}"
         warn e.backtrace.first(3).join("\n")
+      end
+
+      def on_logout
+        @session[:manager].lock
+        @session = nil
+        @panels = {}
+        @nav.destroy
+        @top_sep.destroy
+        @content.destroy
+        @status_sep.destroy
+        @status_bar.destroy
+        Tk.update
+        show_unlock_screen
+      end
+
+      def open_user_panel
+        Panels::UserPanel.new(
+          @root,
+          session: @session,
+          on_session_update: ->(new_session) {
+            @session = new_session
+            update_vault_panel_session(new_session)
+          }
+        )
+      end
+
+      def update_vault_panel_session(new_session)
+        return unless @panels&.key?('vault')
+
+        @panels['vault'].update_session(new_session)
       end
 
       def build_main_app
@@ -125,11 +175,13 @@ module Enigma
         end
         nav.pack(side: :top, fill: :x)
         nav.pack_propagate(false)
+        @nav = nav
 
-        TkFrame.new(@root) do
+        @top_sep = TkFrame.new(@root) do
           background COLORS[:orange]
           height 1
-        end.pack(side: :top, fill: :x)
+        end
+        @top_sep.pack(side: :top, fill: :x)
 
         left = TkFrame.new(nav) { background COLORS[:bg_main] }
         left.pack(side: :left, fill: :y, padx: [20, 0])
@@ -170,6 +222,26 @@ module Enigma
           btn.bind('Button-1') { |_| switch_tab(key) }
         end
 
+        @user_btn = TkLabel.new(nav) do
+          text "  👤  "
+          font TkFont.new(family: FONT_EMOJI, size: 12)
+          foreground COLORS[:fg_secondary]
+          background COLORS[:bg_main]
+          cursor 'hand2'
+        end
+        @user_btn.pack(side: :right)
+        @user_btn.bind('Button-1') { open_user_panel }
+
+        @logout_btn = TkLabel.new(nav) do
+          text '  Cerrar Sesión  '
+          font TkFont.new("#{FONT} 9 bold")
+          foreground COLORS[:orange]
+          background COLORS[:bg_main]
+          cursor 'hand2'
+        end
+        @logout_btn.pack(side: :right)
+        @logout_btn.bind('Button-1') { on_logout }
+
         @status_icon = TkLabel.new(nav) do
           text "  ● VAULT OPEN"
           font TkFont.new("#{FONT} 9 bold")
@@ -185,19 +257,20 @@ module Enigma
       end
 
       def build_status_bar
-        TkFrame.new(@root) do
+        @status_sep = TkFrame.new(@root) do
           background COLORS[:orange]
           height 1
-        end.pack(side: :bottom, fill: :x)
+        end
+        @status_sep.pack(side: :bottom, fill: :x)
 
-        bar = TkFrame.new(@root) do
+        @status_bar = TkFrame.new(@root) do
           background COLORS[:bg_main]
           height 30
         end
-        bar.pack(side: :bottom, fill: :x)
-        bar.pack_propagate(false)
+        @status_bar.pack(side: :bottom, fill: :x)
+        @status_bar.pack_propagate(false)
 
-        left = TkFrame.new(bar) { background COLORS[:bg_main] }
+        left = TkFrame.new(@status_bar) { background COLORS[:bg_main] }
         left.pack(side: :left, fill: :y, padx: [20, 0])
 
         TkLabel.new(left) do
@@ -207,7 +280,7 @@ module Enigma
           background COLORS[:bg_main]
         end.pack(side: :left)
 
-        right = TkFrame.new(bar) { background COLORS[:bg_main] }
+        right = TkFrame.new(@status_bar) { background COLORS[:bg_main] }
         right.pack(side: :right, fill: :y, padx: [0, 20])
 
         TkLabel.new(right) do
@@ -273,6 +346,8 @@ end
 require_relative 'screens/create_screen'
 require_relative 'screens/unlock_screen'
 require_relative 'screens/recovery_screen'
+require_relative 'screens/change_password_screen'
 require_relative 'panels/vault_panel'
 require_relative 'panels/cipher_panel'
 require_relative 'panels/file_lock_panel'
+require_relative 'panels/user_panel'

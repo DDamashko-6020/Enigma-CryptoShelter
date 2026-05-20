@@ -27,6 +27,18 @@ module Enigma
         pass.shuffle.join
       end
 
+      GROUP_SIZE = 4
+      SEPARATOR  = '-'
+
+      # @param password [String] raw password
+      # @param group_size [Integer] characters per group
+      # @param separator [String] separator between groups
+      # @return [String] formatted password (e.g. "ABCD-EFGH-IJKL")
+      def self.format(password, group_size: GROUP_SIZE, separator: SEPARATOR)
+        raw = password.gsub(separator, '')
+        raw.chars.each_slice(group_size).map(&:join).join(separator)
+      end
+
       # @param password [String] password to evaluate
       # @return [Symbol] :weak, :medium, or :strong
       def self.strength(password)

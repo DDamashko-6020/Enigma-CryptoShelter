@@ -3,11 +3,13 @@
 
 #
 # app/ui/screens/recovery_screen.rb
-# Responsibility: Password recovery via security questions.
+# Responsibility: Password recovery via security questions from vault header.
+# Falls back to auth.dat for vaults created before the header format update.
+# On success → calls on_success with recovered vault_key.
+# Uses Queue + TkAfter polling (Thread-safe).
 #
 
 require 'tk'
-require 'fileutils'
 
 module Enigma
   module UI
@@ -15,16 +17,11 @@ module Enigma
       COLORS = MainWindow::COLORS
       FONT   = MainWindow::FONT
 
-      STEP_QUESTIONS = 0
-      STEP_RESET     = 1
-
-      def initialize(root, on_recovered, on_back = nil)
-        @root         = root
-        @on_recovered = on_recovered
-        @on_back      = on_back
-        @auth         = Core::Auth::AuthConfig.new
-        @step         = STEP_QUESTIONS
-        build_questions
+      def initialize(parent, on_success:, on_back: nil)
+        @parent     = parent
+        @on_success = on_success
+        @on_back    = on_back
+        build
       end
 
       def hide
@@ -33,103 +30,99 @@ module Enigma
 
       private
 
-      def build_questions
-        @root.geometry('480x400+200+150')
-        @root.resizable(false, false)
+      def build
+        @frame = TkFrame.new(@parent) { background COLORS[:bg_main] }
+        @frame.pack(expand: true, fill: :both)
 
-        @frame = TkFrame.new(@root) { background COLORS[:bg_main] }
-        @frame.pack(expand: true)
+        card = TkFrame.new(@frame) { background COLORS[:bg_panel] }
+        card.place(relx: 0.5, rely: 0.5, anchor: 'center')
 
-        title = TkLabel.new(@frame) do
-          text "🔓  RECUPERAR ACCESO"
+        TkLabel.new(card) do
+          text '🔓  RECUPERAR ACCESO'
           font TkFont.new("#{FONT} 14 bold")
           foreground COLORS[:orange]
-          background COLORS[:bg_main]
-        end
-        title.pack(pady: [20, 4])
+          background COLORS[:bg_panel]
+        end.pack(pady: [20, 4])
 
-        subtitle = TkLabel.new(@frame) do
-          text 'Responde las preguntas de seguridad'
+        TkLabel.new(card) do
+          text 'Responde las preguntas de seguridad configuradas'
           font TkFont.new("#{FONT} 10")
           foreground COLORS[:fg_secondary]
-          background COLORS[:bg_main]
-        end
-        subtitle.pack(pady: [0, 16])
-
-        questions = @auth.load_questions_text || []
-        if questions.empty?
-          @error_label = TkLabel.new(@frame) do
-            text '  No hay preguntas configuradas'
-            font TkFont.new("#{FONT} 9")
-            foreground COLORS[:red_err]
-            background COLORS[:bg_main]
-          end
-          @error_label.pack
-          return
-        end
+          background COLORS[:bg_panel]
+        end.pack(pady: [0, 16])
 
         @answer_entries = []
 
-        questions.each_with_index do |q, i|
-          card = TkFrame.new(@frame) { background COLORS[:bg_panel] }
-          card.pack(fill: :x, padx: 40, pady: [0, 10])
-
-          q_label = TkLabel.new(card) do
-            text "  #{i + 1}. #{q}"
-            font TkFont.new("#{FONT} 9 bold")
-            foreground COLORS[:orange]
+        questions = Core::Vault::Storage.read_question_texts
+        if questions.nil? || questions.empty?
+          TkLabel.new(card) do
+            text '  No hay preguntas de seguridad configuradas.'
+            font TkFont.new("#{FONT} 9")
+            foreground COLORS[:red_err]
             background COLORS[:bg_panel]
-            wraplength 380
-            justify 'left'
-          end
-          q_label.pack(anchor: 'w', padx: 16, pady: [12, 4])
+          end.pack(pady: 20)
+        else
+          questions.each_with_index do |q, i|
+            next if q.nil? || q.empty?
 
-          entry = TkEntry.new(card) do
-            background COLORS[:bg_input]
-            foreground COLORS[:fg_primary]
-            font TkFont.new("#{FONT} 11")
-            relief 'flat'
-            highlightthickness 1
-            highlightcolor COLORS[:orange]
-            highlightbackground COLORS[:border]
+            q_frame = TkFrame.new(card) { background COLORS[:bg_panel] }
+            q_frame.pack(fill: :x, padx: 30, pady: [0, 10])
+
+            TkLabel.new(q_frame) do
+              text "  #{i + 1}. #{q}"
+              font TkFont.new("#{FONT} 9 bold")
+              foreground COLORS[:orange]
+              background COLORS[:bg_panel]
+              wraplength 380
+              justify 'left'
+            end.pack(anchor: 'w', padx: 16, pady: [12, 4])
+
+            entry = TkEntry.new(q_frame) do
+              background COLORS[:bg_input]
+              foreground COLORS[:fg_primary]
+              font TkFont.new("#{FONT} 11")
+              relief 'flat'
+              highlightthickness 1
+              highlightcolor COLORS[:orange]
+              highlightbackground COLORS[:border]
+            end
+            entry.pack(fill: :x, padx: 16, pady: [0, 12], ipady: 4)
+            @answer_entries << entry
           end
-          entry.pack(fill: :x, padx: 16, pady: [0, 12], ipady: 4)
-          @answer_entries << entry
+
+          btn_frame = TkFrame.new(card) { background COLORS[:bg_panel] }
+          btn_frame.pack(pady: [8, 4])
+
+          @verify_btn = TkButton.new(btn_frame) do
+            text '  VERIFICAR RESPUESTAS  '
+            font TkFont.new("#{FONT} 10 bold")
+            foreground COLORS[:bg_main]
+            background COLORS[:orange]
+            relief 'flat'
+          end
+          @verify_btn.pack(fill: :x, padx: 40, ipady: 6)
+          @verify_btn.command = -> { on_verify }
         end
 
-        @error_label = TkLabel.new(@frame) do
+        @error_label = TkLabel.new(card) do
           text ''
           font TkFont.new("#{FONT} 9")
           foreground COLORS[:red_err]
-          background COLORS[:bg_main]
+          background COLORS[:bg_panel]
         end
-        @error_label.pack(anchor: 'w', padx: 40, pady: [4, 0])
-
-        btn_frame = TkFrame.new(@frame) { background COLORS[:bg_main] }
-        btn_frame.pack(pady: [8, 20])
-
-        @verify_btn = TkButton.new(btn_frame) do
-          text '  VERIFICAR RESPUESTAS  '
-          font TkFont.new("#{FONT} 10 bold")
-          foreground COLORS[:bg_main]
-          background COLORS[:orange]
-          relief 'flat'
-        end
-        @verify_btn.pack(fill: :x, padx: 40, ipady: 6)
-
-        screen = self
-        @verify_btn.command(proc { screen.send(:on_verify) })
+        @error_label.pack(anchor: 'w', padx: 30, pady: [4, 0])
 
         if @on_back
-          back_link = TkLabel.new(@frame) do
+          TkLabel.new(card) do
             text '  ← Volver a la pantalla de inicio'
             font TkFont.new("#{FONT} 9")
             foreground COLORS[:fg_secondary]
-            background COLORS[:bg_main]
+            background COLORS[:bg_panel]
             cursor 'hand2'
+          end.tap do |l|
+            l.pack(pady: [4, 12])
+            l.bind('Button-1') { @frame.pack_forget; @on_back.call }
           end
-          back_link.pack(pady: [4, 4])
-          back_link.bind('Button-1') { @frame.pack_forget; @on_back.call }
         end
       end
 
@@ -137,138 +130,68 @@ module Enigma
         answers = @answer_entries.map { |e| e.value }
 
         if answers.any?(&:empty?)
-          @error_label.configure('text' => '  Responde todas las preguntas')
+          @error_label.configure('text' => 'Responde todas las preguntas')
           return
         end
 
-        unless @auth.verify_answers(answers)
-          @error_label.configure('text' => '  Respuestas incorrectas')
-          return
-        end
+        @verify_btn.configure(text: 'Verificando...', state: 'disabled')
+        @error_label.configure(text: '')
+        @verify_btn.update
 
-        @frame.pack_forget
-        build_reset_form
-      end
+        queue = Queue.new
 
-      def build_reset_form
-        @root.geometry('480x320+200+150')
+        Thread.new do
+          begin
+            unless Core::Vault::Storage.verify_answers(answers)
+              queue << [:wrong]
+              next
+            end
 
-        @frame = TkFrame.new(@root) { background COLORS[:bg_main] }
-        @frame.pack(expand: true)
+            recovered = Core::Vault::Storage.read_recovery_data(nil, answers)
+            unless recovered
+              queue << [:recovery_failed]
+              next
+            end
 
-        title = TkLabel.new(@frame) do
-          text "✅  RESPUESTAS CORRECTAS"
-          font TkFont.new("#{FONT} 14 bold")
-          foreground COLORS[:green_ok]
-          background COLORS[:bg_main]
-        end
-        title.pack(pady: [20, 16])
-
-        card = TkFrame.new(@frame) { background COLORS[:bg_panel] }
-        card.pack(fill: :x, padx: 40)
-
-        pw_label = TkLabel.new(card) do
-          text '  Nueva clave maestra'
-          font TkFont.new("#{FONT} 9 bold")
-          foreground COLORS[:orange]
-          background COLORS[:bg_panel]
-        end
-        pw_label.pack(anchor: 'w', padx: 16, pady: [16, 0])
-
-        @new_pw = TkEntry.new(card) do
-          background COLORS[:bg_input]
-          foreground COLORS[:fg_primary]
-          font TkFont.new("#{FONT} 11")
-          show '*'
-          relief 'flat'
-          highlightthickness 1
-          highlightcolor COLORS[:orange]
-          highlightbackground COLORS[:border]
-        end
-        @new_pw.pack(fill: :x, padx: 16, pady: [4, 0], ipady: 4)
-
-        conf_label = TkLabel.new(card) do
-          text '  Confirmar nueva clave'
-          font TkFont.new("#{FONT} 9 bold")
-          foreground COLORS[:orange]
-          background COLORS[:bg_panel]
-        end
-        conf_label.pack(anchor: 'w', padx: 16, pady: [12, 0])
-
-        @new_confirm = TkEntry.new(card) do
-          background COLORS[:bg_input]
-          foreground COLORS[:fg_primary]
-          font TkFont.new("#{FONT} 11")
-          show '*'
-          relief 'flat'
-          highlightthickness 1
-          highlightcolor COLORS[:orange]
-          highlightbackground COLORS[:border]
-        end
-        @new_confirm.pack(fill: :x, padx: 16, pady: [4, 16], ipady: 4)
-
-        @reset_error = TkLabel.new(@frame) do
-          text ''
-          font TkFont.new("#{FONT} 9")
-          foreground COLORS[:red_err]
-          background COLORS[:bg_main]
-        end
-        @reset_error.pack(anchor: 'w', padx: 40, pady: [4, 0])
-
-        btn_frame = TkFrame.new(@frame) { background COLORS[:bg_main] }
-        btn_frame.pack(pady: [12, 20])
-
-        reset_btn = TkButton.new(btn_frame) do
-          text '  RESTABLECER Y REINICIAR  '
-          font TkFont.new("#{FONT} 10 bold")
-          foreground COLORS[:bg_main]
-          background COLORS[:orange]
-          relief 'flat'
-        end
-        reset_btn.pack(fill: :x, padx: 40, ipady: 6)
-
-        screen = self
-        reset_btn.command(proc { screen.send(:on_reset) })
-
-        if @on_back
-          back_link = TkLabel.new(@frame) do
-            text '  ← Volver'
-            font TkFont.new("#{FONT} 9")
-            foreground COLORS[:fg_secondary]
-            background COLORS[:bg_main]
-            cursor 'hand2'
+            queue << [:ok, recovered]
+          rescue => e
+            queue << [:error, e.message]
           end
-          back_link.pack(pady: [4, 4])
-          back_link.bind('Button-1') { @frame.pack_forget; @on_back.call }
+        end
+
+        poll_verify(queue)
+      end
+
+      def poll_verify(queue)
+        TkAfter.new(50, 1) do
+          result = begin; queue.pop(true); rescue ThreadError; nil; end
+
+          if result.nil?
+            poll_verify(queue)
+            return
+          end
+
+          case result[0]
+          when :ok
+            @frame.pack_forget
+            @verify_btn.configure(text: '  VERIFICAR RESPUESTAS  ', state: 'normal')
+            @on_success.call(result[1])
+          when :wrong
+            @error_label.configure(text: 'Respuestas incorrectas', foreground: COLORS[:red_err])
+            @verify_btn.configure(text: '  VERIFICAR RESPUESTAS  ', state: 'normal')
+            clear_answer_fields
+          when :recovery_failed
+            @error_label.configure(text: 'Error al recuperar clave', foreground: COLORS[:red_err])
+            @verify_btn.configure(text: '  VERIFICAR RESPUESTAS  ', state: 'normal')
+          when :error
+            @error_label.configure(text: "Error: #{result[1]}", foreground: COLORS[:red_err])
+            @verify_btn.configure(text: '  VERIFICAR RESPUESTAS  ', state: 'normal')
+          end
         end
       end
 
-      def on_reset
-        pw = @new_pw.value
-        confirm = @new_confirm.value
-
-        if pw.length < 8
-          @reset_error.configure('text' => '  Mínimo 8 caracteres')
-          return
-        end
-
-        if pw != confirm
-          @reset_error.configure('text' => '  Las claves no coinciden')
-          return
-        end
-
-        @reset_error.configure('text' => '  Restableciendo...', 'foreground' => COLORS[:orange])
-        Tk.update
-
-        vault_path = Core::Vault::Storage::VAULT_PATH
-        FileUtils.rm_f(vault_path) if File.exist?(vault_path)
-
-        auth_path = Core::Auth::AuthConfig::AUTH_PATH
-        FileUtils.rm_f(auth_path) if File.exist?(auth_path)
-
-        @on_recovered.call
-      rescue StandardError => e
-        @reset_error.configure('text' => "  Error: #{e.message}", 'foreground' => COLORS[:red_err])
+      def clear_answer_fields
+        @answer_entries.each { |e| e.value = '' }
       end
     end
   end
