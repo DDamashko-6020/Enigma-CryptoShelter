@@ -16,5 +16,11 @@ module Enigma
     }.freeze
 
     FONT = 'Courier'
+
+    FONT_EMOJI = case RUBY_PLATFORM
+                 when /darwin/ then 'Apple Color Emoji'
+                 when /mingw|mswin|windows/i then 'Segoe UI Emoji'
+                 else 'Noto Color Emoji'
+                 end.freeze
   end
 end

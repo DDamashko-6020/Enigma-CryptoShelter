@@ -4,6 +4,8 @@
 # app/core/cipher/factory.rb
 # Responsibility: Factory Method + Strategy for algorithm selection.
 #
+# Pattern: Factory + Strategy
+#
 
 require_relative 'aes_gcm'
 require_relative 'chacha20'

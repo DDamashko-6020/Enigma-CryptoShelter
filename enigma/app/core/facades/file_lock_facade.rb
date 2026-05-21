@@ -4,6 +4,8 @@
 # app/core/facades/file_lock_facade.rb
 # Responsibility: Facade between UI and file_lock core.
 #
+# Pattern: Facade
+#
 
 module Enigma
   module Core

@@ -1,18 +1,12 @@
 # frozen_string_literal: true
 
-#
-# app/ui/screens/unlock_screen.rb
-# Responsibility: Returning-user vault unlock screen with loading state.
-# Uses Queue + TkAfter polling (Thread-safe, proven pattern from FileLockPanel).
-#
-
 require 'tk'
 
 module Enigma
   module UI
     class UnlockScreen
-      COLORS = MainWindow::COLORS
-      FONT   = MainWindow::FONT
+      COLORS = Theme::COLORS
+      FONT   = Theme::FONT
 
       def initialize(root, on_success, on_recovery = nil)
         @root        = root
@@ -80,7 +74,7 @@ module Enigma
 
         toggle_btn = TkLabel.new(pw_row) do
           text '  👁  '
-          font TkFont.new(family: MainWindow::FONT_EMOJI, size: 11)
+          font TkFont.new(family: Theme::FONT_EMOJI, size: 11)
           foreground COLORS[:fg_secondary]
           background COLORS[:bg_input]
           cursor 'hand2'
@@ -108,8 +102,7 @@ module Enigma
         end
         @unlock_btn.pack(fill: :x, padx: 40, ipady: 6)
 
-        screen = self
-        @unlock_btn.command(proc { screen.send(:on_unlock) })
+        @unlock_btn.command(proc { on_unlock })
         @pw_entry.bind('Return') { on_unlock }
 
         recovery_link = TkLabel.new(@frame) do
@@ -124,51 +117,38 @@ module Enigma
       end
 
       def on_unlock
-        pw = @pw_entry.value
+        pw = @pw_entry.value.strip
         if pw.empty?
-          @error_label.configure('text' => '  Ingresa tu clave maestra')
+          show_inline_error('Ingresa tu clave maestra')
           return
         end
 
-        @unlock_btn.configure('state' => 'disabled', 'text' => '  Verificando...  ')
-        @error_label.configure('text' => '')
-        Tk.update
-
-        queue = Queue.new
+        @unlock_btn.configure(text: '  Verificando...  ', state: 'disabled')
+        @error_label.configure(text: '')
+        @unlock_btn.update
 
         Thread.new do
-          session = Core::Facades::VaultFacade.open(pw)
-          queue << [:ok, session]
-        rescue Errors::AuthTagError
-          queue << [:auth_error]
-        rescue StandardError => e
-          queue << [:error, e.message]
+          begin
+            session = Core::Facades::VaultFacade.open(pw)
+            TkAfter.new(0, 1) { @on_success.call(session) }
+          rescue Errors::AuthTagError
+            TkAfter.new(0, 1) do
+              show_inline_error('Clave incorrecta')
+              @unlock_btn.configure(text: '  ABRIR VAULT  ', state: 'normal')
+              @pw_entry.delete(0, 'end')
+              @pw_entry.focus
+            end
+          rescue => e
+            TkAfter.new(0, 1) do
+              show_inline_error("Error: #{e.message}")
+              @unlock_btn.configure(text: '  ABRIR VAULT  ', state: 'normal')
+            end
+          end
         end
-
-        poll_unlock(queue)
       end
 
-      def poll_unlock(queue)
-        TkAfter.new(50, 1) do
-          result = begin; queue.pop(true); rescue ThreadError; nil; end
-
-          if result.nil?
-            poll_unlock(queue)
-            return
-          end
-
-          case result[0]
-          when :ok
-            @on_success.call(result[1])
-          when :auth_error
-            @error_label.configure('text' => '  Clave incorrecta')
-            @unlock_btn.configure('state' => 'normal', 'text' => '  ABRIR VAULT  ')
-            @pw_entry.delete(0, 'end')
-          when :error
-            @error_label.configure('text' => "  Error: #{result[1]}")
-            @unlock_btn.configure('state' => 'normal', 'text' => '  ABRIR VAULT  ')
-          end
-        end
+      def show_inline_error(message)
+        @error_label.configure(text: "  #{message}", foreground: COLORS[:red_err])
       end
 
       def toggle_password

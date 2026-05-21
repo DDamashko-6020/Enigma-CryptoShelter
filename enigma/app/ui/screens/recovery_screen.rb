@@ -5,7 +5,6 @@
 # Responsibility: Password recovery via security questions from vault header.
 # Falls back to auth.dat for vaults created before the header format update.
 # On success → calls on_success with recovered vault_key.
-# Uses Queue + TkAfter polling (Thread-safe).
 #
 
 require 'tk'
@@ -13,8 +12,8 @@ require 'tk'
 module Enigma
   module UI
     class RecoveryScreen
-      COLORS = MainWindow::COLORS
-      FONT   = MainWindow::FONT
+      COLORS = Theme::COLORS
+      FONT   = Theme::FONT
 
       def initialize(parent, on_success:, on_back: nil)
         @parent     = parent
@@ -121,10 +120,7 @@ module Enigma
           cursor 'hand2'
         end.tap do |l|
           l.pack(pady: [4, 12])
-          l.bind('Button-1') do
-            @frame.pack_forget
-            @on_back.call
-          end
+          l.bind('Button-1') { hide; @on_back.call }
         end
       end
 
@@ -132,7 +128,7 @@ module Enigma
         answers = @answer_entries.map(&:value)
 
         if answers.any?(&:empty?)
-          @error_label.configure('text' => 'Responde todas las preguntas')
+          @error_label.configure(text: 'Responde todas las preguntas')
           return
         end
 
@@ -140,52 +136,35 @@ module Enigma
         @error_label.configure(text: '')
         @verify_btn.update
 
-        queue = Queue.new
-
         Thread.new do
-          unless Core::Vault::Storage.verify_answers(answers)
-            queue << [:wrong]
-            next
-          end
+          begin
+            unless Core::Vault::Storage.verify_answers(answers)
+              TkAfter.new(0, 1) do
+                @error_label.configure(text: 'Respuestas incorrectas', foreground: COLORS[:red_err])
+                @verify_btn.configure(text: '  VERIFICAR RESPUESTAS  ', state: 'normal')
+                clear_answer_fields
+              end
+              next
+            end
 
-          recovered = Core::Vault::Storage.read_recovery_data(nil, answers)
-          unless recovered
-            queue << [:recovery_failed]
-            next
-          end
+            recovered = Core::Vault::Storage.read_recovery_data(nil, answers)
+            unless recovered
+              TkAfter.new(0, 1) do
+                @error_label.configure(text: 'Error al recuperar clave', foreground: COLORS[:red_err])
+                @verify_btn.configure(text: '  VERIFICAR RESPUESTAS  ', state: 'normal')
+              end
+              next
+            end
 
-          queue << [:ok, recovered]
-        rescue StandardError => e
-          queue << [:error, e.message]
-        end
-
-        poll_verify(queue)
-      end
-
-      def poll_verify(queue)
-        TkAfter.new(50, 1) do
-          result = begin; queue.pop(true); rescue ThreadError; nil; end
-
-          if result.nil?
-            poll_verify(queue)
-            return
-          end
-
-          case result[0]
-          when :ok
-            @frame.pack_forget
-            @verify_btn.configure(text: '  VERIFICAR RESPUESTAS  ', state: 'normal')
-            @on_success.call(result[1])
-          when :wrong
-            @error_label.configure(text: 'Respuestas incorrectas', foreground: COLORS[:red_err])
-            @verify_btn.configure(text: '  VERIFICAR RESPUESTAS  ', state: 'normal')
-            clear_answer_fields
-          when :recovery_failed
-            @error_label.configure(text: 'Error al recuperar clave', foreground: COLORS[:red_err])
-            @verify_btn.configure(text: '  VERIFICAR RESPUESTAS  ', state: 'normal')
-          when :error
-            @error_label.configure(text: "Error: #{result[1]}", foreground: COLORS[:red_err])
-            @verify_btn.configure(text: '  VERIFICAR RESPUESTAS  ', state: 'normal')
+            TkAfter.new(0, 1) do
+              @frame.pack_forget
+              @on_success.call(recovered)
+            end
+          rescue => e
+            TkAfter.new(0, 1) do
+              @error_label.configure(text: "Error: #{e.message}", foreground: COLORS[:red_err])
+              @verify_btn.configure(text: '  VERIFICAR RESPUESTAS  ', state: 'normal')
+            end
           end
         end
       end

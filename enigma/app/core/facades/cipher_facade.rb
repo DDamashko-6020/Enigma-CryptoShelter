@@ -4,6 +4,8 @@
 # app/core/facades/cipher_facade.rb
 # Responsibility: Facade between UI and cipher core.
 #
+# Pattern: Facade
+#
 
 module Enigma
   module Core

@@ -4,6 +4,8 @@
 # app/core/vault/null_credential.rb
 # Responsibility: Null Object for Credential — safe default when none selected.
 #
+# Pattern: Null Object
+#
 
 module Enigma
   module Core

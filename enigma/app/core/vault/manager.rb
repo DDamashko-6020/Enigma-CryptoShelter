@@ -3,6 +3,9 @@
 #
 # app/core/vault/manager.rb
 # Responsibility: State machine for vault credentials (locked/unlocked).
+# CRUD operations with search index for O(n) lookups.
+#
+# Pattern: State
 #
 
 require_relative '../errors/vault_error'
@@ -12,18 +15,17 @@ require_relative 'credential'
 module Enigma
   module Core
     module Vault
-      # Pattern: State
       class Manager
         LOCKED   = :locked
         UNLOCKED = :unlocked
 
         def initialize(storage)
-          @storage      = storage
-          @credentials  = []
-          @state        = LOCKED
-          @dirty        = false
-          @batching     = false
-          @site_index   = {}
+          @storage     = storage
+          @credentials = []
+          @state       = LOCKED
+          @dirty       = false
+          @batching    = false
+          @site_index  = {}
         end
 
         def unlock
@@ -65,11 +67,13 @@ module Enigma
           return @credentials.dup if query.to_s.strip.empty?
 
           q = query.to_s.downcase
-          @site_index[q] || []
-          partial = @credentials.select do |c|
+
+          exact = @site_index[q]
+          return exact.dup if exact
+
+          @credentials.select do |c|
             c.site.downcase.include?(q) || c.username.downcase.include?(q)
           end
-          partial.uniq(&:id)
         end
 
         def update(id, **fields)
@@ -104,7 +108,6 @@ module Enigma
           @credentials.size
         end
 
-        # Batch multiple operations, persist once at the end
         def batch
           @batching = true
           yield
@@ -132,7 +135,6 @@ module Enigma
             @dirty = true
           else
             @storage.save(@credentials)
-            @dirty = false
           end
         end
 

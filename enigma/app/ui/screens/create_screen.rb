@@ -1,21 +1,12 @@
 # frozen_string_literal: true
 
-#
-# app/ui/screens/create_screen.rb
-# Responsibility: First-run vault creation with security questions.
-# Stores security data in vault header.
-# Uses Queue + TkAfter polling (Thread-safe).
-#
-
 require 'tk'
 
 module Enigma
   module UI
     class CreateScreen
-      COLORS = MainWindow::COLORS
-      FONT   = MainWindow::FONT
-
-      SECURITY_QUESTIONS = Core::Vault::Storage::SECURITY_QUESTIONS
+      COLORS = Theme::COLORS
+      FONT   = Theme::FONT
 
       def initialize(root, on_success)
         @root       = root
@@ -30,7 +21,7 @@ module Enigma
       private
 
       def build
-        @root.geometry('520x620+200+100')
+        @root.geometry('420x400+200+150')
         @root.resizable(false, false)
 
         @frame = TkFrame.new(@root) { background COLORS[:bg_main] }
@@ -48,7 +39,7 @@ module Enigma
         title.pack(pady: [0, 4])
 
         subtitle = TkLabel.new(canvas) do
-          text 'Crear clave maestra y preguntas de seguridad'
+          text 'Crear clave maestra'
           font TkFont.new("#{FONT} 10")
           foreground COLORS[:fg_secondary]
           background COLORS[:bg_main]
@@ -57,7 +48,6 @@ module Enigma
 
         build_password_fields(canvas)
         build_strength_bar(canvas)
-        build_security_questions(canvas)
         build_error_label(canvas)
         build_create_button(canvas)
       end
@@ -93,7 +83,7 @@ module Enigma
 
         toggle_pw = TkLabel.new(pw_row) do
           text '  👁  '
-          font TkFont.new(family: MainWindow::FONT_EMOJI, size: 11)
+          font TkFont.new(family: Theme::FONT_EMOJI, size: 11)
           foreground COLORS[:fg_secondary]
           background COLORS[:bg_input]
           cursor 'hand2'
@@ -127,7 +117,7 @@ module Enigma
 
         toggle_confirm = TkLabel.new(confirm_row) do
           text '  👁  '
-          font TkFont.new(family: MainWindow::FONT_EMOJI, size: 11)
+          font TkFont.new(family: Theme::FONT_EMOJI, size: 11)
           foreground COLORS[:fg_secondary]
           background COLORS[:bg_input]
           cursor 'hand2'
@@ -145,74 +135,6 @@ module Enigma
         @strength_label.pack(anchor: 'w', padx: 40, pady: [4, 0])
 
         @pw_entry.bind('KeyRelease') { update_strength }
-      end
-
-      def build_security_questions(parent)
-        sep = TkFrame.new(parent) do
-          background COLORS[:border]
-          height 1
-        end
-        sep.pack(fill: :x, padx: 40, pady: [12, 12])
-
-        q_label = TkLabel.new(parent) do
-          text '  PREGUNTAS DE SEGURIDAD (elige 2)'
-          font TkFont.new("#{FONT} 9 bold")
-          foreground COLORS[:orange]
-          background COLORS[:bg_main]
-        end
-        q_label.pack(anchor: 'w', padx: 40, pady: [0, 8])
-
-        @q_vars    = []
-        @a_entries = []
-
-        2.times do |i|
-          card = TkFrame.new(parent) { background COLORS[:bg_panel] }
-          card.pack(fill: :x, padx: 40, pady: [0, 8])
-
-          q_header = TkLabel.new(card) do
-            text "  Pregunta #{i + 1}"
-            font TkFont.new("#{FONT} 9 bold")
-            foreground COLORS[:orange]
-            background COLORS[:bg_panel]
-          end
-          q_header.pack(anchor: 'w', padx: 16, pady: [12, 0])
-
-          q_var = TkVariable.new
-          q_var.value = SECURITY_QUESTIONS[i]
-          q_combo = Tk::Tile::Combobox.new(card) do
-            values SECURITY_QUESTIONS
-            textvariable q_var
-            state 'readonly'
-            background COLORS[:bg_input]
-            foreground COLORS[:fg_primary]
-            font TkFont.new("#{FONT} 10")
-          end
-          q_combo.pack(fill: :x, padx: 16, pady: [4, 0])
-          @q_vars << q_var
-
-          a_label = TkLabel.new(card) do
-            text '  Respuesta'
-            font TkFont.new("#{FONT} 9")
-            foreground COLORS[:fg_secondary]
-            background COLORS[:bg_panel]
-          end
-          a_label.pack(anchor: 'w', padx: 16, pady: [8, 0])
-
-          a_row = TkFrame.new(card) { background COLORS[:bg_panel] }
-          a_row.pack(fill: :x, padx: 16, pady: [2, 12])
-
-          a_entry = TkEntry.new(a_row) do
-            background COLORS[:bg_input]
-            foreground COLORS[:fg_primary]
-            font TkFont.new("#{FONT} 10")
-            relief 'flat'
-            highlightthickness 1
-            highlightcolor COLORS[:orange]
-            highlightbackground COLORS[:border]
-          end
-          a_entry.pack(side: :left, fill: :x, expand: true, ipady: 2)
-          @a_entries << a_entry
-        end
       end
 
       def build_error_label(parent)
@@ -238,84 +160,34 @@ module Enigma
         end
         @create_btn.pack(fill: :x, padx: 40, ipady: 6)
 
-        screen = self
-        @create_btn.command(proc { screen.send(:on_create) })
+        @create_btn.command(proc { on_create })
       end
 
       def on_create
-        pw      = @pw_entry.value
+        pw = @pw_entry.value
         confirm = @confirm_entry.value
+        return show_error('Mínimo 8 caracteres') if pw.length < 8
+        return show_error('Las claves no coinciden') if pw != confirm
 
-        if pw.length < 8
-          @error_label.configure('text' => '  Mínimo 8 caracteres')
-          return
-        end
-
-        if pw != confirm
-          @error_label.configure('text' => '  Las claves no coinciden')
-          return
-        end
-
-        answers = []
-        questions_data = []
-        valid = true
-        @q_vars.each_with_index do |qv, i|
-          q_text = qv.value.strip.force_encoding('UTF-8')
-          a_text = @a_entries[i].value.strip.force_encoding('UTF-8')
-          if q_text.empty? || a_text.empty?
-            @error_label.configure('text' => "  Completa pregunta #{i + 1} y su respuesta")
-            valid = false
-            break
-          end
-          idx = SECURITY_QUESTIONS.index(q_text)
-          unless idx
-            @error_label.configure('text' => "  Pregunta #{i + 1} no válida")
-            valid = false
-            break
-          end
-          questions_data << { index: idx, answer: a_text }
-          answers << a_text
-        end
-        return unless valid
-
-        @create_btn.configure('state' => 'disabled', 'text' => '  Creando...  ')
-        @error_label.configure('text' => '')
-        Tk.update
-
-        queue = Queue.new
+        @create_btn.configure(text: '  Creando vault...  ', state: 'disabled')
+        @error_label.configure(text: '')
+        @create_btn.update
 
         Thread.new do
-          security_data = {
-            questions: questions_data.map { |q| { index: q[:index], answer: q[:answer] } },
-            answers: answers
-          }
-          session = Core::Facades::VaultFacade.create(pw, security_data: security_data)
-          queue << [:ok, session]
-        rescue StandardError => e
-          warn "[CreateScreen] #{e.class}: #{e.message}"
-          queue << [:error, e.message]
+          begin
+            session = Core::Facades::VaultFacade.create(pw)
+            TkAfter.new(0, 1) { @on_success.call(session) }
+          rescue => e
+            TkAfter.new(0, 1) do
+              show_error("Error: #{e.message}")
+              @create_btn.configure(text: '  CREAR VAULT  ', state: 'normal')
+            end
+          end
         end
-
-        poll_create(queue)
       end
 
-      def poll_create(queue)
-        TkAfter.new(50, 1) do
-          result = begin; queue.pop(true); rescue ThreadError; nil; end
-
-          if result.nil?
-            poll_create(queue)
-            return
-          end
-
-          case result[0]
-          when :ok
-            @on_success.call(result[1])
-          when :error
-            @error_label.configure('text' => "  Error: #{result[1]}")
-            @create_btn.configure('state' => 'normal', 'text' => '  CREAR VAULT  ')
-          end
-        end
+      def show_error(msg)
+        @error_label.configure('text' => "  #{msg}", foreground: COLORS[:red_err])
       end
 
       def toggle_password

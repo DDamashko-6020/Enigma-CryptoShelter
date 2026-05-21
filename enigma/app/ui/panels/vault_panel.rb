@@ -11,8 +11,8 @@ require 'tkextlib/tile'
 module Enigma
   module UI
     class VaultPanel
-      COLORS = MainWindow::COLORS
-      FONT   = MainWindow::FONT
+      COLORS = Theme::COLORS
+      FONT   = Theme::FONT
 
       def initialize(parent, session)
         @frame   = TkFrame.new(parent) { background COLORS[:bg_main] }
@@ -216,7 +216,7 @@ module Enigma
 
         toggle_btn = TkLabel.new(pass_row) do
           text '  👁  '
-          font TkFont.new(family: MainWindow::FONT_EMOJI, size: 11)
+          font TkFont.new(family: Theme::FONT_EMOJI, size: 11)
           foreground COLORS[:fg_secondary]
           background COLORS[:bg_input]
           cursor 'hand2'
@@ -226,7 +226,7 @@ module Enigma
 
         gen_btn = TkLabel.new(pass_row) do
           text '  ⚡  '
-          font TkFont.new(family: MainWindow::FONT_EMOJI, size: 11)
+          font TkFont.new(family: Theme::FONT_EMOJI, size: 11)
           foreground COLORS[:orange]
           background COLORS[:bg_input]
           cursor 'hand2'

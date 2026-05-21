@@ -11,8 +11,8 @@ require 'fileutils'
 module Enigma
   module UI
     class FileLockPanel
-      COLORS = MainWindow::COLORS
-      FONT   = MainWindow::FONT
+      COLORS = Theme::COLORS
+      FONT   = Theme::FONT
 
       def initialize(parent, session)
         @frame     = TkFrame.new(parent) { background COLORS[:bg_main] }
@@ -75,7 +75,7 @@ module Enigma
 
         icon = TkLabel.new(drop) do
           text '📄'
-          font TkFont.new(family: MainWindow::FONT_EMOJI, size: 14)
+          font TkFont.new(family: Theme::FONT_EMOJI, size: 14)
           foreground COLORS[:orange]
           background COLORS[:bg_input]
         end
@@ -127,7 +127,7 @@ module Enigma
 
         eye = TkLabel.new(share_row) do
           text '  👁  '
-          font TkFont.new(family: MainWindow::FONT_EMOJI, size: 11)
+          font TkFont.new(family: Theme::FONT_EMOJI, size: 11)
           foreground COLORS[:fg_secondary]
           background COLORS[:bg_input]
           cursor 'hand2'
@@ -322,7 +322,7 @@ module Enigma
       end
 
       def poll_lock(queue)
-        TkAfter.new(100, 1) do
+        @poll_timer = TkAfter.new(100, 1) do
           result = begin
             queue.pop(true)
           rescue ThreadError
@@ -334,6 +334,7 @@ module Enigma
             return
           end
 
+          @poll_timer = nil
           set_processing(false)
 
           case result[0]

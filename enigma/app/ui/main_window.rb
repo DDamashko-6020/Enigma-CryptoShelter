@@ -4,6 +4,9 @@
 # app/ui/main_window.rb
 # Responsibility: TkRoot, session, startup flow, navigation, status bar.
 #
+# Pattern: Mediator (coordinates screens, panels, session)
+#
+#
 
 require 'tk'
 require 'tkextlib/tile'
@@ -14,6 +17,16 @@ module Enigma
     class MainWindow
       COLORS = Theme::COLORS
       FONT   = Theme::FONT
+
+      require_relative 'screens/create_screen'
+      require_relative 'screens/create_questions_screen'
+      require_relative 'screens/unlock_screen'
+      require_relative 'screens/recovery_screen'
+      require_relative 'screens/change_password_screen'
+      require_relative 'panels/vault_panel'
+      require_relative 'panels/cipher_panel'
+      require_relative 'panels/file_lock_panel'
+      require_relative 'panels/user_panel'
 
       FONT_EMOJI = case RUBY_PLATFORM
                    when /darwin/ then 'Apple Color Emoji'
@@ -40,8 +53,45 @@ module Enigma
 
       private
 
+      SCREENS = {
+        create_questions:  CreateQuestionsScreen,
+        recovery:          RecoveryScreen,
+        change_password:   ChangePasswordScreen
+      }.freeze
+
+      BACK_MAP = {
+        create_questions: :show_create_screen,
+        recovery:         :show_unlock_screen,
+        change_password:  :recovery
+      }.freeze
+
+      def show_screen(name, opts = {})
+        @screen_frame&.destroy
+        @screen_frame = TkFrame.new(@root) { background COLORS[:bg_main] }
+        @screen_frame.pack(fill: :both, expand: true)
+
+        back_action = BACK_MAP[name]
+        klass = SCREENS[name]
+
+        on_back = if back_action
+                    if back_action.to_s.start_with?('show_')
+                      -> { send(back_action) }
+                    else
+                      -> { show_screen(back_action) }
+                    end
+                  end
+
+        @current_screen = klass.new(
+          @screen_frame,
+          **opts,
+          on_back: on_back
+        )
+        Tk.update
+      end
+
       def show_create_screen
-        @screen = CreateScreen.new(@root, method(:on_vault_ready))
+        @screen_frame&.destroy
+        @screen = CreateScreen.new(@root, method(:on_create_done))
       end
 
       def show_unlock_screen
@@ -49,41 +99,28 @@ module Enigma
         @screen = UnlockScreen.new(@root, method(:on_vault_ready), method(:on_recovery))
       end
 
-      def show_change_password_screen(current_keys)
+      def on_create_done(session)
+        @session = session
         @screen&.hide
-        @screen_frame = TkFrame.new(@root) { background COLORS[:bg_main] }
-        @screen_frame.pack(fill: :both, expand: true)
-        @screen = Screens::ChangePasswordScreen.new(
-          @screen_frame,
-          on_back: -> { show_unlock_screen },
-          on_success: method(:on_change_password_success),
-          current_keys: current_keys
-        )
         Tk.update
+        show_screen(:create_questions, session: session,
+                    on_success: method(:on_vault_ready))
       end
 
       def on_recovery
         @screen&.hide
-        @screen_frame = TkFrame.new(@root) { background COLORS[:bg_main] }
-        @screen_frame.pack(fill: :both, expand: true)
-        @screen = RecoveryScreen.new(
-          @screen_frame,
-          on_success: method(:on_recovery_success),
-          on_back: -> { show_unlock_screen }
-        )
-        Tk.update
+        show_screen(:recovery, on_success: method(:on_recovery_success))
       end
 
       def on_recovery_success(recovered_keys)
-        @screen&.hide
         @screen_frame&.destroy
         Tk.update
-        show_change_password_screen(recovered_keys)
+        show_screen(:change_password, current_keys: recovered_keys,
+                    on_success: method(:on_change_password_success))
       end
 
       def on_change_password_success(new_session)
         @session = new_session
-        @screen&.hide
         @screen_frame&.destroy
         Tk.update
         build_main_app
@@ -91,12 +128,12 @@ module Enigma
 
       def on_vault_ready(session)
         @session = session
-        @screen&.hide
+        @screen_frame&.destroy
+        @screen&.hide rescue nil
         Tk.update
         build_main_app
       rescue StandardError => e
         warn "[on_vault_ready] #{e.class}: #{e.message}"
-        warn e.backtrace.first(3).join("\n")
       end
 
       def on_logout
@@ -318,23 +355,22 @@ module Enigma
                 when 'vault'
                   VaultPanel.new(@content, @session)
                 when 'cipher_lab'
-                  CipherPanel.new(@content)
+                  begin
+                    CipherPanel.new(@content)
+                  rescue StandardError => e
+                    warn "Cipher Lab no disponible: #{e.message}"
+                    nil
+                  end
                 when 'file_lock'
-                  FileLockPanel.new(@content, @session)
+                  begin
+                    FileLockPanel.new(@content, @session)
+                  rescue StandardError => e
+                    warn "File Lock no disponible: #{e.message}"
+                    nil
+                  end
                 end
         @panels[key] = panel if panel
-      rescue StandardError => e
-        warn "Panel #{key} no disponible: #{e.message}"
       end
     end
   end
 end
-
-require_relative 'screens/create_screen'
-require_relative 'screens/unlock_screen'
-require_relative 'screens/recovery_screen'
-require_relative 'screens/change_password_screen'
-require_relative 'panels/vault_panel'
-require_relative 'panels/cipher_panel'
-require_relative 'panels/file_lock_panel'
-require_relative 'panels/user_panel'

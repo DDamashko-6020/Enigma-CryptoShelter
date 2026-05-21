@@ -12,8 +12,8 @@ module Enigma
   module UI
     module Panels
       class UserPanel < TkToplevel
-        COLORS = MainWindow::COLORS
-        FONT   = MainWindow::FONT
+        COLORS = Theme::COLORS
+        FONT   = Theme::FONT
 
         def initialize(parent, opts = {})
           super(parent)
@@ -212,50 +212,34 @@ module Enigma
           @change_pass_btn.configure(text: 'Cambiando...', state: 'disabled')
           @change_pass_btn.update
 
-          queue = Queue.new
-
           Thread.new do
-            current_keys = verify_current_password!(current)
-            new_session = Core::Facades::VaultFacade.change_password(
-              current_keys, new_p, confirm
-            )
-            queue << [:ok, new_session]
-          rescue Errors::AuthTagError
-            queue << [:auth_error]
-          rescue Errors::VaultError, Errors::InvalidKeyError => e
-            queue << [:validation_error, e.message]
-          rescue StandardError => e
-            queue << [:error, e.message]
-          end
-
-          poll_change_pass(queue)
-        end
-
-        def poll_change_pass(queue)
-          TkAfter.new(50, 1) do
-            result = begin; queue.pop(true); rescue ThreadError; nil; end
-
-            if result.nil?
-              poll_change_pass(queue)
-              return
-            end
-
-            case result[0]
-            when :ok
-              @session = result[1]
-              @on_session_update.call(result[1])
-              show_success('Clave cambiada correctamente')
-              clear_password_fields
-              @change_pass_btn.configure(text: 'CAMBIAR CLAVE', state: 'normal')
-            when :auth_error
-              @pass_error.configure(text: 'Clave actual incorrecta')
-              @change_pass_btn.configure(text: 'CAMBIAR CLAVE', state: 'normal')
-            when :validation_error
-              @pass_error.configure(text: result[1])
-              @change_pass_btn.configure(text: 'CAMBIAR CLAVE', state: 'normal')
-            when :error
-              @pass_error.configure(text: "Error: #{result[1]}")
-              @change_pass_btn.configure(text: 'CAMBIAR CLAVE', state: 'normal')
+            begin
+              current_keys = verify_current_password!(current)
+              new_session = Core::Facades::VaultFacade.change_password(
+                current_keys, new_p, confirm
+              )
+              TkAfter.new(0, 1) do
+                @session = new_session
+                @on_session_update.call(new_session)
+                show_success('Clave cambiada correctamente')
+                clear_password_fields
+                @change_pass_btn.configure(text: 'CAMBIAR CLAVE', state: 'normal')
+              end
+            rescue Errors::AuthTagError
+              TkAfter.new(0, 1) do
+                @pass_error.configure(text: 'Clave actual incorrecta')
+                @change_pass_btn.configure(text: 'CAMBIAR CLAVE', state: 'normal')
+              end
+            rescue Errors::VaultError, Errors::InvalidKeyError => e
+              TkAfter.new(0, 1) do
+                @pass_error.configure(text: e.message)
+                @change_pass_btn.configure(text: 'CAMBIAR CLAVE', state: 'normal')
+              end
+            rescue => e
+              TkAfter.new(0, 1) do
+                @pass_error.configure(text: "Error: #{e.message}")
+                @change_pass_btn.configure(text: 'CAMBIAR CLAVE', state: 'normal')
+              end
             end
           end
         end

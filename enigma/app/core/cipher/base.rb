@@ -4,6 +4,8 @@
 # app/core/cipher/base.rb
 # Responsibility: Abstract base class for all ciphers (Template Method).
 #
+# Pattern: Template Method
+#
 
 require_relative '../errors/cipher_error'
 

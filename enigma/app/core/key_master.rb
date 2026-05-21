@@ -2,12 +2,10 @@
 
 #
 # app/core/key_master.rb
-# Single-pass key derivation following KeePass architecture.
-# ONE PBKDF2 call → master_key → HKDF expansion → purpose keys.
-# master_key never stored or returned.
+# Responsibility: Single-pass key derivation — ONE PBKDF2 + HKDF expansion.
+# master_key never stored or returned. Zeroed in memory after use.
 #
 # Pattern: Singleton
-# Pattern: Factory Method (derive_* methods)
 #
 
 require 'openssl'
@@ -24,20 +22,16 @@ module Enigma
       SALT_LENGTH = 32
       DIGEST      = 'SHA256'
 
-      VAULT_INFO    = 'enigma_vault_v1'
-      FILELOCK_INFO = 'enigma_filelock_v1'
-
-      def derive_session_keys(master_password, salt)
-        master_key = pbkdf2(master_password, salt)
+      def derive_session_keys(password, salt)
+        master_key = pbkdf2(password, salt)
 
         result = {
-          vault_key: hkdf_expand(master_key, VAULT_INFO),
-          filelock_key: hkdf_expand(master_key, FILELOCK_INFO)
+          vault_key:    hkdf(master_key, 'enigma_vault_v1'),
+          filelock_key: hkdf(master_key, 'enigma_filelock_v1')
         }
 
         master_key.replace("\x00" * KEY_LENGTH)
-        nil
-
+        master_key = nil
         result
       end
 
@@ -53,8 +47,8 @@ module Enigma
         )
       end
 
-      def hkdf_expand(master_key, info)
-        OpenSSL::HMAC.digest(DIGEST, master_key, "#{info}\u0001")[0, KEY_LENGTH]
+      def hkdf(master_key, info)
+        OpenSSL::HMAC.digest(DIGEST, master_key, info + "\x01")[0, KEY_LENGTH]
       end
     end
   end

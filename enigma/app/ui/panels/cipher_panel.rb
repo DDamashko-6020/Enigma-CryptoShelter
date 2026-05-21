@@ -11,8 +11,8 @@ require 'tkextlib/tile'
 module Enigma
   module UI
     class CipherPanel
-      COLORS = MainWindow::COLORS
-      FONT   = MainWindow::FONT
+      COLORS = Theme::COLORS
+      FONT   = Theme::FONT
 
       def initialize(parent)
         @frame = TkFrame.new(parent) { background COLORS[:bg_main] }
@@ -95,7 +95,7 @@ module Enigma
 
         eye = TkLabel.new(key_row) do
           text '  👁  '
-          font TkFont.new(family: MainWindow::FONT_EMOJI, size: 11)
+          font TkFont.new(family: Theme::FONT_EMOJI, size: 11)
           foreground COLORS[:fg_secondary]
           background COLORS[:bg_input]
           cursor 'hand2'

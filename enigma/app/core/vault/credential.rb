@@ -4,6 +4,8 @@
 # app/core/vault/credential.rb
 # Responsibility: Value Object representing a single vault credential.
 #
+# Pattern: Value Object
+#
 
 require 'securerandom'
 require 'time'
